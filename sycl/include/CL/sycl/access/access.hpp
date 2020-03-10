@@ -9,8 +9,72 @@
 
 #include <CL/sycl/detail/defines.hpp>
 
+//#define __SYCL_DISABLE_ACCESSOR_SIMPLIFICATION_EXTENSION__
+
+
 __SYCL_INLINE namespace cl {
+
 namespace sycl {
+
+#ifndef __SYCL_DISABLE_ACCESSOR_SIMPLIFICATION_EXTENSION__
+
+enum class target {
+  global = 2014,
+  constant,
+  local,
+  image,
+  host_buffer,
+  host_image,
+  image_array,
+
+  // Deprecated enum names, for backward compatibility with versions before this extension
+  global_buffer = 2014,
+  constant_buffer
+};
+
+// Backward compatibility namespace nesting
+namespace access {
+  using target = sycl::target;
+}
+
+
+namespace access {
+  enum class mode {
+    read = 1024,
+    write,
+    read_write,
+    discard_write,
+    discard_read_write,
+    atomic
+  };
+}
+
+using access_mode = access::mode;
+
+
+namespace access {
+  enum class placeholder { false_t, true_t };
+}
+
+// FIXME update
+namespace access {
+enum class fence_space {
+  local_space,
+  global_space,
+  global_and_local
+};
+
+// FIXME update
+enum class address_space : int {
+  private_space = 0,
+  global_space,
+  constant_space,
+  local_space
+};
+}  // namespace access
+
+#else  // #ifndef __SYCL_DISABLE_ACCESSOR_SIMPLIFICATION_EXTENSION__
+
 namespace access {
 
 enum class target {
@@ -48,6 +112,8 @@ enum class address_space : int {
 };
 
 }  // namespace access
+
+#endif  // #ifndef __SYCL_DISABLE_ACCESSOR_SIMPLIFICATION_EXTENSION__
 
 namespace detail {
 

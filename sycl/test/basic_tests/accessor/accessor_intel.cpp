@@ -3,7 +3,7 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
-//==---------accessor_121_enums.cpp - SYCL 1.2.1 accessor enum test
+//==---------accessor_intel.cpp acheck Intel extension reduced verbosity enum names
 //---------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

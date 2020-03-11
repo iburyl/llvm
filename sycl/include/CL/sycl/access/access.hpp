@@ -9,11 +9,7 @@
 
 #include <CL/sycl/detail/defines.hpp>
 
-//#define __SYCL_DISABLE_ACCESSOR_SIMPLIFICATION_EXTENSION__
-
-
 __SYCL_INLINE namespace cl {
-
 namespace sycl {
 
 #ifndef __SYCL_DISABLE_ACCESSOR_SIMPLIFICATION_EXTENSION__
@@ -56,7 +52,7 @@ namespace access {
   enum class placeholder { false_t, true_t };
 }
 
-// FIXME update
+// TODO: update based on resolution of https://gitlab.devtools.intel.com/SYCL/extensions/merge_requests/42#note_2803186
 namespace access {
 enum class fence_space {
   local_space,
@@ -64,7 +60,7 @@ enum class fence_space {
   global_and_local
 };
 
-// FIXME update
+// TODO: update based on resolution of https://gitlab.devtools.intel.com/SYCL/extensions/merge_requests/42#note_2803186
 enum class address_space : int {
   private_space = 0,
   global_space,

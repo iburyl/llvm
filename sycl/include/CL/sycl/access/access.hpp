@@ -30,7 +30,7 @@ enum class target {
 
 // Backward compatibility namespace nesting
 namespace access {
-  using target = sycl::target;
+  using sycl::target;
 }
 
 

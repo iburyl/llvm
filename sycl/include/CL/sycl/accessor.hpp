@@ -749,6 +749,8 @@ public:
   using reference = DataT &;
   using const_reference = const DataT &;
 
+  constexpr static target getTarget() { return AccessTarget; }
+
   template <int Dims = Dimensions, typename AllocatorT,
             typename detail::enable_if_t<
                 Dims == 0 && ((!IsPlaceH && IsHostBuf) ||
@@ -1250,6 +1252,143 @@ public:
                                          IsPlaceholder>(*this, Index);
   }
 };
+
+#if __cplusplus > 201402L
+
+template< typename DataT, int Dimensions, typename AllocatorT >
+accessor(buffer<DataT,Dimensions,AllocatorT>) -> accessor<DataT,Dimensions,access::mode::read_write,target::host_buffer>;
+
+template< typename DataT, int Dimensions, typename AllocatorT >
+accessor(buffer<DataT,Dimensions,AllocatorT>, range<Dimensions>) -> accessor<DataT,Dimensions,access::mode::read_write,target::host_buffer>;
+
+template< typename DataT, int Dimensions, typename AllocatorT >
+accessor(buffer<DataT,Dimensions,AllocatorT>, handler) -> accessor<DataT,Dimensions,access::mode::read_write,target::global_buffer>;
+
+template< typename DataT, int Dimensions, typename AllocatorT >
+accessor(buffer<DataT,Dimensions,AllocatorT>, handler, range<Dimensions>) -> accessor<DataT,Dimensions,access::mode::read_write,target::global_buffer>;
+
+template <access::target AccessTarget, typename DataT, int Dimensions, 
+    access::placeholder IsPlaceholder = access::placeholder::false_t>
+class read_accessor : public accessor<DataT, Dimensions, access::mode::read, AccessTarget, IsPlaceholder>
+{
+    public:
+    template< typename AllocatorT > 
+    read_accessor( buffer<DataT,Dimensions,AllocatorT>& buf ) :
+        accessor<DataT, Dimensions, access::mode::read, AccessTarget, IsPlaceholder>( buf ) {}
+
+    template< typename AllocatorT > 
+    read_accessor( buffer<DataT,Dimensions,AllocatorT>& buf, range<Dimensions> r ) :
+        accessor<DataT, Dimensions, access::mode::read, AccessTarget, IsPlaceholder>( buf, r ) {}
+
+    template< typename AllocatorT > 
+    read_accessor( buffer<DataT,Dimensions,AllocatorT>& buf, handler &commandGroupHandlerRef ) :
+        accessor<DataT, Dimensions, access::mode::read, AccessTarget, IsPlaceholder>( buf, commandGroupHandlerRef ) {}
+};
+
+template< typename DataT, int Dimensions, typename AllocatorT >
+read_accessor(buffer<DataT,Dimensions,AllocatorT>) -> read_accessor<target::host_buffer,DataT,Dimensions>;
+
+template< typename DataT, int Dimensions, typename AllocatorT >
+read_accessor(buffer<DataT,Dimensions,AllocatorT>, range<Dimensions>) -> read_accessor<target::host_buffer,DataT,Dimensions>;
+
+template< typename DataT, int Dimensions, typename AllocatorT >
+read_accessor(buffer<DataT,Dimensions,AllocatorT>, handler) -> read_accessor<target::global_buffer,DataT,Dimensions>;
+
+template< typename DataT, int Dimensions, typename AllocatorT >
+read_accessor(buffer<DataT,Dimensions,AllocatorT>, handler, range<Dimensions>) -> read_accessor<target::global_buffer,DataT,Dimensions>;
+
+template <access::target AccessTarget, typename DataT, int Dimensions, 
+    access::placeholder IsPlaceholder = access::placeholder::false_t>
+class write_accessor : public accessor<DataT, Dimensions, access::mode::write, AccessTarget, IsPlaceholder>
+{
+    public:
+    template< typename AllocatorT > 
+    write_accessor( buffer<DataT,Dimensions,AllocatorT>& buf ) :
+        accessor<DataT, Dimensions, access::mode::write, AccessTarget, IsPlaceholder>( buf ) {}
+
+    template< typename AllocatorT > 
+    write_accessor( buffer<DataT,Dimensions,AllocatorT>& buf, range<Dimensions> r ) :
+        accessor<DataT, Dimensions, access::mode::write, AccessTarget, IsPlaceholder>( buf, r ) {}
+
+    template< typename AllocatorT > 
+    write_accessor( buffer<DataT,Dimensions,AllocatorT>& buf, handler &commandGroupHandlerRef ) :
+        accessor<DataT, Dimensions, access::mode::write, AccessTarget, IsPlaceholder>( buf, commandGroupHandlerRef ) {}
+};
+
+template< typename DataT, int Dimensions, typename AllocatorT >
+write_accessor(buffer<DataT,Dimensions,AllocatorT>) -> write_accessor<target::host_buffer,DataT,Dimensions>;
+
+template< typename DataT, int Dimensions, typename AllocatorT >
+write_accessor(buffer<DataT,Dimensions,AllocatorT>, range<Dimensions>) -> write_accessor<target::host_buffer,DataT,Dimensions>;
+
+template< typename DataT, int Dimensions, typename AllocatorT >
+write_accessor(buffer<DataT,Dimensions,AllocatorT>, handler) -> write_accessor<target::global_buffer,DataT,Dimensions>;
+
+template< typename DataT, int Dimensions, typename AllocatorT >
+write_accessor(buffer<DataT,Dimensions,AllocatorT>, handler, range<Dimensions>) -> write_accessor<target::global_buffer,DataT,Dimensions>;
+
+template <access::target AccessTarget, typename DataT, int Dimensions, 
+    access::placeholder IsPlaceholder = access::placeholder::false_t>
+class discard_write_accessor : public accessor<DataT, Dimensions, access::mode::discard_write, AccessTarget, IsPlaceholder>
+{
+    public:
+    template< typename AllocatorT > 
+    discard_write_accessor( buffer<DataT,Dimensions,AllocatorT>& buf ) :
+        accessor<DataT, Dimensions, access::mode::discard_write, AccessTarget, IsPlaceholder>( buf ) {}
+
+    template< typename AllocatorT > 
+    discard_write_accessor( buffer<DataT,Dimensions,AllocatorT>& buf, range<Dimensions> r ) :
+        accessor<DataT, Dimensions, access::mode::discard_write, AccessTarget, IsPlaceholder>( buf, r ) {}
+
+    template< typename AllocatorT > 
+    discard_write_accessor( buffer<DataT,Dimensions,AllocatorT>& buf, handler &commandGroupHandlerRef ) :
+        accessor<DataT, Dimensions, access::mode::discard_write, AccessTarget, IsPlaceholder>( buf, commandGroupHandlerRef ) {}
+};
+
+template< typename DataT, int Dimensions, typename AllocatorT >
+discard_write_accessor(buffer<DataT,Dimensions,AllocatorT>) -> discard_write_accessor<target::host_buffer,DataT,Dimensions>;
+
+template< typename DataT, int Dimensions, typename AllocatorT >
+discard_write_accessor(buffer<DataT,Dimensions,AllocatorT>, range<Dimensions>) -> discard_write_accessor<target::host_buffer,DataT,Dimensions>;
+
+template< typename DataT, int Dimensions, typename AllocatorT >
+discard_write_accessor(buffer<DataT,Dimensions,AllocatorT>, handler) -> discard_write_accessor<target::global_buffer,DataT,Dimensions>;
+
+template< typename DataT, int Dimensions, typename AllocatorT >
+discard_write_accessor(buffer<DataT,Dimensions,AllocatorT>, handler, range<Dimensions>) -> discard_write_accessor<target::global_buffer,DataT,Dimensions>;
+
+
+template <access::target AccessTarget, typename DataT, int Dimensions, 
+    access::placeholder IsPlaceholder = access::placeholder::false_t>
+class discard_read_write_accessor : public accessor<DataT, Dimensions, access::mode::discard_read_write, AccessTarget, IsPlaceholder>
+{
+    public:
+    template< typename AllocatorT > 
+    discard_read_write_accessor( buffer<DataT,Dimensions,AllocatorT>& buf ) :
+        accessor<DataT, Dimensions, access::mode::discard_read_write, AccessTarget, IsPlaceholder>( buf ) {}
+
+    template< typename AllocatorT > 
+    discard_read_write_accessor( buffer<DataT,Dimensions,AllocatorT>& buf, range<Dimensions> r ) :
+        accessor<DataT, Dimensions, access::mode::discard_read_write, AccessTarget, IsPlaceholder>( buf, r ) {}
+
+    template< typename AllocatorT > 
+    discard_read_write_accessor( buffer<DataT,Dimensions,AllocatorT>& buf, handler &commandGroupHandlerRef ) :
+        accessor<DataT, Dimensions, access::mode::discard_read_write, AccessTarget, IsPlaceholder>( buf, commandGroupHandlerRef ) {}
+};
+
+template< typename DataT, int Dimensions, typename AllocatorT >
+discard_read_write_accessor(buffer<DataT,Dimensions,AllocatorT>) -> discard_read_write_accessor<target::host_buffer,DataT,Dimensions>;
+
+template< typename DataT, int Dimensions, typename AllocatorT >
+discard_read_write_accessor(buffer<DataT,Dimensions,AllocatorT>, range<Dimensions>) -> discard_read_write_accessor<target::host_buffer,DataT,Dimensions>;
+
+template< typename DataT, int Dimensions, typename AllocatorT >
+discard_read_write_accessor(buffer<DataT,Dimensions,AllocatorT>, handler) -> discard_read_write_accessor<target::global_buffer,DataT,Dimensions>;
+
+template< typename DataT, int Dimensions, typename AllocatorT >
+discard_read_write_accessor(buffer<DataT,Dimensions,AllocatorT>, handler, range<Dimensions>) -> discard_read_write_accessor<target::global_buffer,DataT,Dimensions>;
+
+#endif
 
 } // namespace sycl
 } // namespace cl

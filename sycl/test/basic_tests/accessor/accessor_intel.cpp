@@ -36,7 +36,7 @@ int main() {
 
     sycl::accessor<sycl::float4, 2, sycl::access_mode::write,
                    sycl::target::host_image>
-        a2(I); // <== This line causes segfault to start appearing
+        a2(I);
   }
 
   sycl::queue Q{};
@@ -77,11 +77,11 @@ int main() {
 
       sycl::accessor<sycl::float4, 2, sycl::access_mode::write,
                      sycl::target::image>
-          a8(I, h); // <== This line causes segfault to start appearing
+          a8(I, h);
 
       sycl::accessor<sycl::float4, 1, sycl::access_mode::write,
                      sycl::target::image_array>
-          a9(I, h); // <== This line causes segfault to start appearing
+          a9(I, h);
 
 
       sycl::accessor<int, 0, sycl::access_mode::read_write,

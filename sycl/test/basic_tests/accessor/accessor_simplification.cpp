@@ -126,8 +126,8 @@ int main() {
                              {cl::sycl::property::buffer::use_host_ptr()});
 
     Queue.submit([&](sycl::handler &cgh) {
-      auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
-      sycl::accessor acc_tmp(buf, cgh); // can not be passed to kernel
+      //auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+      sycl::accessor acc(buf, cgh);
       assert(!acc.is_placeholder());
       assert(acc.get_size() == sizeof(int));
       assert(acc.get_count() == 1);
@@ -150,8 +150,8 @@ int main() {
                                  {cl::sycl::property::buffer::use_host_ptr()});
 
         Queue.submit([&](sycl::handler &cgh) {
-          auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
-          sycl::accessor acc_tmp(buf, cgh); // can not be passed to kernel
+          //auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+          sycl::accessor acc(buf, cgh);
           cgh.parallel_for<class dim2_subscr>(Range, [=](sycl::item<2> itemID) {
             acc[itemID.get_id(0)][itemID.get_id(1)] += itemID.get_linear_id();
           });
@@ -179,8 +179,8 @@ int main() {
                                  {cl::sycl::property::buffer::use_host_ptr()});
 
         Queue.submit([&](sycl::handler &cgh) {
-          auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
-          sycl::accessor acc_tmp(buf, cgh); // can not be passed to kernel
+          //auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+          sycl::accessor acc(buf, cgh);
           cgh.parallel_for<class dim3_subscr>(Range, [=](sycl::item<3> itemID) {
             acc[itemID.get_id(0)][itemID.get_id(1)][itemID.get_id(2)] +=
                 itemID.get_linear_id();
@@ -208,7 +208,7 @@ int main() {
 
       Queue.submit([&](sycl::handler& cgh) {
         auto dev_acc = buf.get_access<sycl::access::mode::discard_write>(cgh);
-        sycl::discard_write_accessor dev_acc_tmp(buf, cgh);
+        sycl::discard_write_accessor dev_acc_tmp(buf, cgh); // can not be passed to kernel
 
         cgh.parallel_for<class test_discard_write>(
             sycl::range<1>{3},
@@ -259,10 +259,9 @@ int main() {
         sycl::buffer<int, 1> buf((int *)array, sycl::range<1>(10),
                                  {cl::sycl::property::buffer::use_host_ptr()});
         queue.submit([&](sycl::handler &cgh) {
-          auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
-          sycl::accessor acc_tmp(buf, cgh); // can not be passed to kernel
+          //auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+          sycl::accessor acc(buf, cgh);
           auto acc_wrapped = AccWrapper<decltype(acc)>{acc};
-          auto acc_wrapped_tmp = AccWrapper<decltype(acc_tmp)>{acc_tmp}; // can not be passed to kernel
           cgh.parallel_for<class wrapped_access1>(
               sycl::range<1>(buf.get_count()), [=](sycl::item<1> it) {
                 auto idx = it.get_linear_id();
@@ -291,14 +290,12 @@ int main() {
         sycl::buffer<int, 1> buf2((int *)array2, sycl::range<1>(10),
                                   {cl::sycl::property::buffer::use_host_ptr()});
         queue.submit([&](sycl::handler &cgh) {
-          auto acc1 = buf1.get_access<sycl::access::mode::read_write>(cgh);
-          sycl::accessor acc1_tmp(buf1, cgh); // can not be passed to kernel
-          auto acc2 = buf2.get_access<sycl::access::mode::read_write>(cgh);
-          sycl::accessor acc2_tmp(buf2, cgh); // can not be passed to kernel
+          //auto acc1 = buf1.get_access<sycl::access::mode::read_write>(cgh);
+          sycl::accessor acc1(buf1, cgh);
+          //auto acc2 = buf2.get_access<sycl::access::mode::read_write>(cgh);
+          sycl::accessor acc2(buf2, cgh);
           auto acc_wrapped =
               AccsWrapper<decltype(acc1), decltype(acc2)>{10, acc1, 5, acc2};
-          auto acc_wrapped_tmp =
-              AccsWrapper<decltype(acc1_tmp), decltype(acc2_tmp)>{10, acc1_tmp, 5, acc2_tmp}; // can not be passed to kernel
           cgh.parallel_for<class wrapped_access2>(
               sycl::range<1>(10), [=](sycl::item<1> it) {
                 auto idx = it.get_linear_id();
@@ -326,8 +323,8 @@ int main() {
         sycl::buffer<int, 1> buf((int *)array, sycl::range<1>(10),
                                  {cl::sycl::property::buffer::use_host_ptr()});
         queue.submit([&](sycl::handler &cgh) {
-          auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
-          sycl::accessor acc_tmp(buf, cgh); // can not be passed to kernel
+          //auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+          sycl::accessor acc(buf, cgh);
           auto acc_wrapped = AccWrapper<decltype(acc)>{acc};
           Wrapper1 wr1;
           auto wr2 = Wrapper2<decltype(acc)>{wr1, acc_wrapped};
@@ -357,10 +354,10 @@ int main() {
       std::cout << "We are here 1" << std::endl;
 
       queue.submit([&](sycl::handler& cgh) {
-        auto acc1 = buf.get_access<sycl::access::mode::read>(cgh);
-        sycl::read_accessor acc1_tmp(buf, cgh); // can not be passed to kernel
-        auto acc2 = buf.get_access<sycl::access::mode::read_write>(cgh);
-        sycl::accessor acc2_tmp(buf, cgh); // can not be passed to kernel
+        //auto acc1 = buf.get_access<sycl::access::mode::read>(cgh);
+        sycl::read_accessor acc1(buf, cgh);
+        //auto acc2 = buf.get_access<sycl::access::mode::read_write>(cgh);
+        sycl::accessor acc2(buf, cgh);
 
         cgh.parallel_for<class two_accessors_to_buf>(
             sycl::range<1>{3},
@@ -423,14 +420,14 @@ int main() {
       sycl::accessor<int, 0, sycl::access::mode::read_write,
                      sycl::access::target::global_buffer>
           acc1(buf1, cgh); // is not being simplified due to not deducable dimension
-      sycl::accessor<int, 1, sycl::access::mode::read_write,
-                     sycl::access::target::global_buffer>
-          acc2(buf2, cgh);
-      sycl::accessor acc2_tmp(buf2, cgh); // can not be passed to kernel
-      sycl::accessor<int, 1, sycl::access::mode::read_write,
-                     sycl::access::target::global_buffer>
-          acc3(buf3, cgh, sycl::range<1>(1));
-      sycl::accessor acc3_tmp(buf3, cgh, sycl::range<1>(1)); // can not be passed to kernel
+      //sycl::accessor<int, 1, sycl::access::mode::read_write,
+      //               sycl::access::target::global_buffer>
+      //    acc2(buf2, cgh);
+      sycl::accessor acc2(buf2, cgh);
+      //sycl::accessor<int, 1, sycl::access::mode::read_write,
+      //               sycl::access::target::global_buffer>
+      //    acc3(buf3, cgh, sycl::range<1>(1));
+      sycl::accessor acc3(buf3, cgh, sycl::range<1>(1));
 
       cgh.single_task<class acc_alloc_buf>([=]() {
         acc1 *= 2;

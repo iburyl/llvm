@@ -207,8 +207,8 @@ int main() {
       sycl::buffer<int, 1> buf(sycl::range<1>(3));
 
       Queue.submit([&](sycl::handler& cgh) {
-        auto dev_acc = buf.get_access<sycl::access::mode::discard_write>(cgh);
-        sycl::discard_write_accessor dev_acc_tmp(buf, cgh); // can not be passed to kernel
+        //auto dev_acc = buf.get_access<sycl::access::mode::discard_write>(cgh);
+        sycl::discard_write_accessor dev_acc(buf, cgh);
 
         cgh.parallel_for<class test_discard_write>(
             sycl::range<1>{3},
@@ -234,8 +234,8 @@ int main() {
       sycl::buffer<int, 1> buf(sycl::range<1>(3));
 
       Queue.submit([&](sycl::handler& cgh) {
-        auto dev_acc = buf.get_access<sycl::access::mode::write>(cgh);
-        sycl::write_accessor dev_acc_tmp(buf, cgh); // can not be passed to kernel
+        //auto dev_acc = buf.get_access<sycl::access::mode::write>(cgh);
+        sycl::write_accessor dev_acc(buf, cgh);
 
         cgh.parallel_for<class test_discard_read_write>(
             sycl::range<1>{3},

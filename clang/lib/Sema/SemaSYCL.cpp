@@ -959,10 +959,32 @@ static ParamDesc makeParamDesc(const FieldDecl *Src, QualType Ty) {
                          Ctx.getTrivialTypeSourceInfo(Ty));
 }
 
+static const ClassTemplateSpecializationDecl *findAccessor(
+    const ClassTemplateSpecializationDecl *AccTy)
+{
+  const CXXRecordDecl *RecTy = AccTy;
+
+  while( RecTy->getName() != "accessor" ) {
+    if( RecTy->bases_begin() == RecTy->bases_end())
+    {
+        // accessor was not found - error
+        return AccTy;
+    }
+    
+    const clang::CXXBaseSpecifier base = *(RecTy->bases_begin());
+    const QualType Ty = base.getType();
+    RecTy = Ty->getAsCXXRecordDecl();
+  }
+
+  return dyn_cast<const ClassTemplateSpecializationDecl>(RecTy);
+}
+
+
+
 /// \return the target of given SYCL accessor type
 static target getAccessTarget(const ClassTemplateSpecializationDecl *AccTy) {
   return static_cast<target>(
-      AccTy->getTemplateArgs()[3].getAsIntegral().getExtValue());
+      findAccessor(AccTy)->getTemplateArgs()[3].getAsIntegral().getExtValue());
 }
 
 // Creates list of kernel parameters descriptors using KernelObj (kernel object)

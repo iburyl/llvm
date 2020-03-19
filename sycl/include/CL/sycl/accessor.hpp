@@ -1266,7 +1266,7 @@ accessor(buffer<DataT,Dimensions,AllocatorT>, handler) -> accessor<DataT,Dimensi
 template< typename DataT, int Dimensions, typename AllocatorT >
 accessor(buffer<DataT,Dimensions,AllocatorT>, handler, range<Dimensions>) -> accessor<DataT,Dimensions,access::mode::read_write,target::global_buffer>;
 
-template <typename DataT, int Dimensions, access::mode AccessMode = access::mode::read, access::target AccessTarget = target::global_buffer, 
+template <typename DataT, int Dimensions, access::target AccessTarget = target::global_buffer, 
     access::placeholder IsPlaceholder = access::placeholder::false_t>
 class read_accessor : public accessor<DataT, Dimensions, access::mode::read, AccessTarget, IsPlaceholder>
 {
@@ -1285,25 +1285,45 @@ class read_accessor : public accessor<DataT, Dimensions, access::mode::read, Acc
         accessor<DataT, Dimensions, access::mode::read, AccessTarget, IsPlaceholder>( buf ) {}
 
     template< typename AllocatorT > 
+    read_accessor( buffer<DataT,Dimensions,AllocatorT>& buf, placeholder_tag_t<IsPlaceholder> ) :
+        accessor<DataT, Dimensions, access::mode::read, AccessTarget, IsPlaceholder>( buf ) {}
+
+    template< typename AllocatorT > 
     read_accessor( buffer<DataT,Dimensions,AllocatorT>& buf, range<Dimensions> r ) :
         accessor<DataT, Dimensions, access::mode::read, AccessTarget, IsPlaceholder>( buf, r ) {}
 
     template< typename AllocatorT > 
-    read_accessor( buffer<DataT,Dimensions,AllocatorT>& buf, handler &commandGroupHandlerRef ) :
+    read_accessor( buffer<DataT,Dimensions,AllocatorT>& buf, range<Dimensions> r, placeholder_tag_t<IsPlaceholder> ) :
+        accessor<DataT, Dimensions, access::mode::read, AccessTarget, IsPlaceholder>( buf, r ) {}
+
+    template< typename AllocatorT > 
+    read_accessor( buffer<DataT,Dimensions,AllocatorT>& buf, handler &commandGroupHandlerRef, target_tag_t<AccessTarget> = global_target_tag ) :
         accessor<DataT, Dimensions, access::mode::read, AccessTarget, IsPlaceholder>( buf, commandGroupHandlerRef ) {}
 };
 
 template< typename DataT, int Dimensions, typename AllocatorT >
-read_accessor(buffer<DataT,Dimensions,AllocatorT>) -> read_accessor<DataT,Dimensions,access::mode::read,target::host_buffer>;
+read_accessor(buffer<DataT,Dimensions,AllocatorT>) ->
+    read_accessor<DataT,Dimensions,target::host_buffer>;
 
 template< typename DataT, int Dimensions, typename AllocatorT >
-read_accessor(buffer<DataT,Dimensions,AllocatorT>, range<Dimensions>) -> read_accessor<DataT,Dimensions,access::mode::read,target::host_buffer>;
+read_accessor(buffer<DataT,Dimensions,AllocatorT>, placeholder_tag_t<access::placeholder::true_t>) ->
+    read_accessor<DataT,Dimensions,target::host_buffer, access::placeholder::true_t>;
 
 template< typename DataT, int Dimensions, typename AllocatorT >
-read_accessor(buffer<DataT,Dimensions,AllocatorT>, handler) -> read_accessor<DataT,Dimensions,access::mode::read,target::global_buffer>;
+read_accessor(buffer<DataT,Dimensions,AllocatorT>, range<Dimensions>) ->
+    read_accessor<DataT,Dimensions,target::host_buffer>;
 
 template< typename DataT, int Dimensions, typename AllocatorT >
-read_accessor(buffer<DataT,Dimensions,AllocatorT>, handler, range<Dimensions>) -> read_accessor<DataT,Dimensions,access::mode::read,target::global_buffer>;
+read_accessor(buffer<DataT,Dimensions,AllocatorT>, range<Dimensions>, placeholder_tag_t<access::placeholder::true_t>) ->
+    read_accessor<DataT,Dimensions,target::host_buffer, access::placeholder::true_t>;
+
+template< typename DataT, int Dimensions, typename AllocatorT >
+read_accessor(buffer<DataT,Dimensions,AllocatorT>, handler) ->
+    read_accessor<DataT,Dimensions,target::global_buffer>;
+
+template< typename DataT, int Dimensions, typename AllocatorT >
+read_accessor(buffer<DataT,Dimensions,AllocatorT>, handler, range<Dimensions>) ->
+    read_accessor<DataT,Dimensions,target::global_buffer>;
 
 template <typename DataT, int Dimensions, access::target AccessTarget, 
     access::placeholder IsPlaceholder = access::placeholder::false_t>

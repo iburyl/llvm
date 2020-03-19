@@ -33,6 +33,16 @@ namespace access {
   using sycl::target;
 }
 
+#if __cplusplus > 201402L
+
+template <target value>
+struct target_tag_t {
+  explicit target_tag_t() = default;
+};
+inline constexpr target_tag_t<target::global>   global_target_tag{};
+inline constexpr target_tag_t<target::constant> constant_target_tag{};
+
+#endif
 
 namespace access {
   enum class mode {
@@ -51,6 +61,16 @@ using access_mode = access::mode;
 namespace access {
   enum class placeholder { false_t, true_t };
 }
+
+#if __cplusplus > 201402L
+
+template <access::placeholder value>
+struct placeholder_tag_t {
+  explicit placeholder_tag_t() = default;
+};
+inline constexpr placeholder_tag_t<access::placeholder::true_t> placeholder_tag{};
+
+#endif
 
 // TODO: update based on resolution of https://gitlab.devtools.intel.com/SYCL/extensions/merge_requests/42#note_2803186
 namespace access {

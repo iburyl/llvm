@@ -454,7 +454,7 @@ public:
   template <typename DataT, int Dims, access::mode AccMode,
             access::target AccTarget>
   void
-  require(accessor<DataT, Dims, AccMode, AccTarget, access::placeholder::true_t>
+  require(accessor<DataT, Dims, AccMode, AccTarget, access::placeholder::true_t>&
               Acc) {
     detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Acc;
     detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);

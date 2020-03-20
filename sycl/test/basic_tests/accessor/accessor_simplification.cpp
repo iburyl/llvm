@@ -483,4 +483,37 @@ int main() {
     }
   }
 
+  // Placeholder accessor
+  {
+    try {
+      int data = -1;
+      int cnst = 399;
+      
+      {
+        sycl::buffer<int, 1> d(&data, sycl::range<1>(1));
+        sycl::buffer<int, 1> c(&cnst, sycl::range<1>(1));
+
+        sycl::write_accessor D(d, sycl::placeholder_tag);
+        sycl::read_accessor C(c, sycl::placeholder_target_tag<sycl::target::constant>);
+        
+        sycl::queue queue;
+        queue.submit([&](sycl::handler &cgh) {
+
+          cgh.require(D);
+          cgh.require(C);
+
+          cgh.single_task<class placeholder_acc>([=]() {
+            D[0] = C[0];
+          });
+        });
+
+        assert(data == 399);
+      }
+
+    } catch (sycl::exception e) {
+      std::cout << "SYCL exception caught: " << e.what();
+      return 1;
+    }
+  }
+
 }

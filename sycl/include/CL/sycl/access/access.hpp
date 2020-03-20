@@ -70,6 +70,13 @@ struct placeholder_tag_t {
 };
 inline constexpr placeholder_tag_t<access::placeholder::true_t> placeholder_tag{};
 
+template <target target_value, access::placeholder value>
+struct placeholder_target_tag_t {
+  explicit placeholder_target_tag_t() = default;
+};
+template <target target_value>
+inline constexpr placeholder_target_tag_t<target_value, access::placeholder::true_t> placeholder_target_tag{};
+
 #endif
 
 // TODO: update based on resolution of https://gitlab.devtools.intel.com/SYCL/extensions/merge_requests/42#note_2803186

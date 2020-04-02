@@ -74,9 +74,9 @@ int main() {
 
     sycl::id<1> id1(1);
     //auto acc_src = buf_src.get_access<sycl::access::mode::read>();
-    sycl::read_accessor acc_src(buf_src);
+    sycl::host_accessor acc_src(buf_src, sycl::read_tag);
     //auto acc_dst = buf_dst.get_access<sycl::access::mode::read_write>();
-    sycl::accessor acc_dst(buf_dst);
+    sycl::host_accessor acc_dst(buf_dst);
 
     assert(!acc_src.is_placeholder());
     assert(acc_src.get_size() == sizeof(src));
@@ -101,7 +101,7 @@ int main() {
     {
       sycl::buffer<int, 3> buf(data, sycl::range<3>(2, 3, 4));
       //auto acc = buf.get_access<sycl::access::mode::read_write>();
-      sycl::accessor acc(buf);
+      sycl::host_accessor acc(buf);
 
       assert(!acc.is_placeholder());
       assert(acc.get_size() == sizeof(data));
@@ -208,7 +208,7 @@ int main() {
 
       Queue.submit([&](sycl::handler& cgh) {
         //auto dev_acc = buf.get_access<sycl::access::mode::discard_write>(cgh);
-        sycl::discard_write_accessor dev_acc(buf, cgh);
+        sycl::accessor dev_acc(buf, cgh, sycl::unintialized_write_tag);
 
         cgh.parallel_for<class test_discard_write>(
             sycl::range<1>{3},
@@ -216,7 +216,7 @@ int main() {
       });
 
       //auto host_acc = buf.get_access<sycl::access::mode::read>();
-      sycl::read_accessor host_acc(buf);
+      sycl::host_accessor host_acc(buf, sycl::read_tag); // TODO: it is read_write now - is there a reason to have read only accessor?
 
       for (int i = 0; i != 3; ++i)
         assert(host_acc[i] == 42);
@@ -235,7 +235,7 @@ int main() {
 
       Queue.submit([&](sycl::handler& cgh) {
         //auto dev_acc = buf.get_access<sycl::access::mode::write>(cgh);
-        sycl::write_accessor dev_acc(buf, cgh);
+        sycl::accessor dev_acc(buf, cgh, sycl::write_tag);
 
         cgh.parallel_for<class test_discard_read_write>(
             sycl::range<1>{3},
@@ -243,7 +243,7 @@ int main() {
       });
 
       //auto host_acc = buf.get_access<sycl::access::mode::discard_read_write>();
-      sycl::discard_read_write_accessor host_acc(buf);
+      sycl::host_accessor host_acc(buf, sycl::unintialized_tag);
     } catch (cl::sycl::exception e) {
       std::cout << "SYCL exception caught: " << e.what();
       return 1;
@@ -367,7 +367,7 @@ int main() {
       });
 
       //auto host_acc = buf.get_access<sycl::access::mode::read>();
-      sycl::read_accessor host_acc(buf);
+      sycl::host_accessor host_acc(buf, sycl::read_tag);
       for (int i = 0; i != 3; ++i)
         assert(host_acc[i] == 42);
 
@@ -442,11 +442,11 @@ int main() {
     //sycl::accessor<int, 1, sycl::access::mode::read,
     //               sycl::access::target::host_buffer>
     //    acc5(buf2);
-    sycl::read_accessor acc5(buf2);
+    sycl::host_accessor acc5(buf2, sycl::read_tag);
     //sycl::accessor<int, 1, sycl::access::mode::read,
     //               sycl::access::target::host_buffer>
     //    acc6(buf3, sycl::range<1>(1));
-    sycl::read_accessor acc6(buf3, sycl::range<1>(1));
+    sycl::host_accessor acc6(buf3, sycl::range<1>(1), sycl::read_tag);
 
     assert(acc4 == 2);
     assert(acc5[0] == 4);
@@ -466,7 +466,7 @@ int main() {
         sycl::queue queue;
         queue.submit([&](sycl::handler &cgh) {
 
-          sycl::write_accessor D(d, cgh);
+          sycl::accessor D(d, cgh, sycl::write_tag);
           sycl::read_accessor C(c, cgh, sycl::constant_target_tag);
 
           cgh.single_task<class acc_with_const>([=]() {
@@ -493,8 +493,8 @@ int main() {
         sycl::buffer<int, 1> d(&data, sycl::range<1>(1));
         sycl::buffer<int, 1> c(&cnst, sycl::range<1>(1));
 
-        sycl::write_accessor D(d, sycl::placeholder_tag);
-        sycl::read_accessor C(c, sycl::placeholder_target_tag<sycl::target::constant>);
+        sycl::accessor D(d, sycl::write_tag);
+        sycl::read_accessor C(c, sycl::constant_target_tag);
         
         sycl::queue queue;
         queue.submit([&](sycl::handler &cgh) {

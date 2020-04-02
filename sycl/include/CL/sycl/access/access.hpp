@@ -77,6 +77,18 @@ struct placeholder_target_tag_t {
 template <target target_value>
 inline constexpr placeholder_target_tag_t<target_value, access::placeholder::true_t> placeholder_target_tag{};
 
+template <access_mode mode>
+struct mode_tag_t {
+  explicit mode_tag_t() = default;
+};
+inline constexpr mode_tag_t<access_mode::read>               read_tag{};
+inline constexpr mode_tag_t<access_mode::read_write>         read_write_tag{};
+inline constexpr mode_tag_t<access_mode::write>              write_tag{};
+inline constexpr mode_tag_t<access_mode::discard_write>      unintialized_write_tag{};
+inline constexpr mode_tag_t<access_mode::discard_read_write> unintialized_tag{};
+
+
+
 #endif
 
 // TODO: update based on resolution of https://gitlab.devtools.intel.com/SYCL/extensions/merge_requests/42#note_2803186

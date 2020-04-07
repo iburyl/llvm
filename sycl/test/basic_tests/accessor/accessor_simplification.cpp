@@ -355,7 +355,7 @@ int main() {
 
       queue.submit([&](sycl::handler& cgh) {
         //auto acc1 = buf.get_access<sycl::access::mode::read>(cgh);
-        sycl::read_accessor acc1(buf, cgh);
+        sycl::accessor acc1(buf, cgh, sycl::read_tag);
         //auto acc2 = buf.get_access<sycl::access::mode::read_write>(cgh);
         sycl::accessor acc2(buf, cgh);
 
@@ -467,7 +467,7 @@ int main() {
         queue.submit([&](sycl::handler &cgh) {
 
           sycl::accessor D(d, cgh, sycl::write_tag);
-          sycl::read_accessor C(c, cgh, sycl::constant_target_tag);
+          sycl::accessor C(c, cgh, sycl::read_tag, sycl::constant_target_tag);
 
           cgh.single_task<class acc_with_const>([=]() {
             D[0] = C[0];
@@ -494,7 +494,7 @@ int main() {
         sycl::buffer<int, 1> c(&cnst, sycl::range<1>(1));
 
         sycl::accessor D(d, sycl::write_tag);
-        sycl::read_accessor C(c, sycl::constant_target_tag);
+        sycl::accessor C(c, sycl::read_tag, sycl::constant_target_tag);
         
         sycl::queue queue;
         queue.submit([&](sycl::handler &cgh) {

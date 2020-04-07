@@ -146,7 +146,7 @@
 __SYCL_INLINE namespace cl {
 namespace sycl {
 
-template <typename DataT, int Dimensions, access::mode AccessMode,
+template <typename DataT, int Dimensions, access::mode AccessMode = access::mode::read_write,
           access::target AccessTarget = access::target::global_buffer,
           access::placeholder IsPlaceholder = access::placeholder::false_t>
 class accessor;
@@ -754,7 +754,8 @@ public:
             typename detail::enable_if_t<
                 Dims == 0 && ((!IsPlaceH && IsHostBuf) ||
                 (IsPlaceH && (IsGlobalBuf || IsConstantBuf)))>* = nullptr>
-  accessor(buffer<DataT, 1, AllocatorT> &BufferRef)
+  accessor(buffer<DataT, 1, AllocatorT> &BufferRef,
+           const property_list &propList = {})
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(id<AdjustedDim>(), range<1>{1}, BufferRef.get_range()) {
 #else
@@ -777,7 +778,8 @@ public:
   accessor(buffer<DataT, 1, AllocatorT> &BufferRef,
            detail::enable_if_t<Dims == 0 &&
                                (!IsPlaceH && (IsGlobalBuf || IsConstantBuf)),
-                               handler> &CommandGroupHandler)
+                               handler> &CommandGroupHandler,
+           const property_list &propList = {})
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(id<AdjustedDim>(), range<1>{1}, BufferRef.get_range()) {
   }
@@ -797,7 +799,8 @@ public:
                 (Dims > 0) && ((!IsPlaceH && IsHostBuf) ||
                                (IsPlaceH && (IsGlobalBuf || IsConstantBuf)))>
                 * = nullptr>
-  accessor(buffer<DataT, Dimensions, AllocatorT> &BufferRef)
+  accessor(buffer<DataT, Dimensions, AllocatorT> &BufferRef,
+           const property_list &propList = {})
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(id<Dimensions>(), BufferRef.get_range(), BufferRef.get_range()) {
   }
@@ -821,7 +824,8 @@ public:
             typename = detail::enable_if_t<
                 (Dims > 0) && (!IsPlaceH && (IsGlobalBuf || IsConstantBuf))>>
   accessor(buffer<DataT, Dimensions, AllocatorT> &BufferRef,
-           handler &CommandGroupHandler)
+           handler &CommandGroupHandler,
+           const property_list &propList = {})
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(id<AdjustedDim>(), BufferRef.get_range(), BufferRef.get_range()) {
   }
@@ -843,13 +847,33 @@ public:
                 (Dims > 0) && ((!IsPlaceH && IsHostBuf) ||
                                (IsPlaceH && (IsGlobalBuf || IsConstantBuf)))>
                 * = nullptr>
-  accessor(buffer<DataT, Dimensions, AllocatorT> &BufferRef, mode_tag_t<AccessMode>) : accessor(BufferRef) {}
+  accessor(buffer<DataT, Dimensions, AllocatorT> &BufferRef, mode_tag_t<AccessMode>,
+           const property_list &propList = {}) : accessor(BufferRef) {}
+
+/* Tag - centric option
+
+  template <int Dims = Dimensions, typename AllocatorT,
+            typename detail::enable_if_t<
+                (Dims > 0) && ((!IsPlaceH && IsHostBuf) ||
+                               (IsPlaceH && (IsGlobalBuf || IsConstantBuf)))>
+                * = nullptr>
+  accessor(buffer<DataT, Dimensions, AllocatorT> &BufferRef, mode_tag_t<AccessMode>, target_tag_t<AccessTarget>) : accessor(BufferRef) {}
+*/
 
   template <int Dims = Dimensions, typename AllocatorT,
             typename = detail::enable_if_t<
                 (Dims > 0) && (!IsPlaceH && (IsGlobalBuf || IsConstantBuf))>>
   accessor(buffer<DataT, Dimensions, AllocatorT> &BufferRef,
-           handler &CommandGroupHandler, mode_tag_t<AccessMode>) : accessor(BufferRef, CommandGroupHandler) {}
+           handler &CommandGroupHandler, mode_tag_t<AccessMode>,
+           const property_list &propList = {}) : accessor(BufferRef, CommandGroupHandler) {}
+
+/* Tag - centric option
+  template <int Dims = Dimensions, typename AllocatorT,
+            typename = detail::enable_if_t<
+                (Dims > 0) && (!IsPlaceH && (IsGlobalBuf || IsConstantBuf))>>
+  accessor(buffer<DataT, Dimensions, AllocatorT> &BufferRef,
+           handler &CommandGroupHandler, mode_tag_t<AccessMode>, target_tag_t<AccessTarget>) : accessor(BufferRef, CommandGroupHandler) {}
+*/
 
 #endif
 
@@ -858,7 +882,8 @@ public:
                 (Dims > 0) && ((!IsPlaceH && IsHostBuf) ||
                                (IsPlaceH && (IsGlobalBuf || IsConstantBuf)))>>
   accessor(buffer<DataT, Dimensions, AllocatorT> &BufferRef,
-           range<Dimensions> AccessRange, id<Dimensions> AccessOffset = {})
+           range<Dimensions> AccessRange, id<Dimensions> AccessOffset = {},
+           const property_list &propList = {})
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(AccessOffset, AccessRange, BufferRef.get_range()) {
   }
@@ -883,7 +908,8 @@ public:
                 (Dims > 0) && (!IsPlaceH && (IsGlobalBuf || IsConstantBuf))>>
   accessor(buffer<DataT, Dimensions, AllocatorT> &BufferRef,
            handler &CommandGroupHandler, range<Dimensions> AccessRange,
-           id<Dimensions> AccessOffset = {})
+           id<Dimensions> AccessOffset = {},
+           const property_list &propList = {})
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(AccessOffset, AccessRange, BufferRef.get_range()) {
   }
@@ -1277,8 +1303,12 @@ accessor(buffer<DataT,Dimensions,AllocatorT>) -> accessor<DataT,Dimensions,acces
 template< typename DataT, int Dimensions, typename AllocatorT, access_mode AccessMode >
 accessor(buffer<DataT,Dimensions,AllocatorT>, mode_tag_t<AccessMode>) -> accessor<DataT,Dimensions,AccessMode,target::global_buffer, access::placeholder::true_t>;
 
+template< typename DataT, int Dimensions, typename AllocatorT, access_mode AccessMode, target AccessTarget >
+accessor(buffer<DataT,Dimensions,AllocatorT>, mode_tag_t<AccessMode>, target_tag_t<AccessTarget>) -> accessor<DataT,Dimensions,AccessMode,AccessTarget, access::placeholder::true_t>;
+
 template< typename DataT, int Dimensions, typename AllocatorT >
 accessor(buffer<DataT,Dimensions,AllocatorT>, range<Dimensions>) -> accessor<DataT,Dimensions,access::mode::read_write,target::global_buffer, access::placeholder::true_t>;
+
 
 template< typename DataT, int Dimensions, typename AllocatorT >
 accessor(buffer<DataT,Dimensions,AllocatorT>, handler) -> accessor<DataT,Dimensions,access::mode::read_write,target::global_buffer>;
@@ -1286,61 +1316,12 @@ accessor(buffer<DataT,Dimensions,AllocatorT>, handler) -> accessor<DataT,Dimensi
 template< typename DataT, int Dimensions, typename AllocatorT, access_mode AccessMode >
 accessor(buffer<DataT,Dimensions,AllocatorT>, handler, mode_tag_t<AccessMode>) -> accessor<DataT,Dimensions,AccessMode,target::global_buffer>;
 
+template< typename DataT, int Dimensions, typename AllocatorT, access_mode AccessMode, target AccessTarget >
+accessor(buffer<DataT,Dimensions,AllocatorT>, handler, mode_tag_t<AccessMode>, target_tag_t<AccessTarget>) -> accessor<DataT,Dimensions,AccessMode,AccessTarget>;
+
 template< typename DataT, int Dimensions, typename AllocatorT >
 accessor(buffer<DataT,Dimensions,AllocatorT>, handler, range<Dimensions>) -> accessor<DataT,Dimensions,access::mode::read_write,target::global_buffer>;
 
-template <typename DataT, int Dimensions, access::target AccessTarget = target::global_buffer, 
-    access::placeholder IsPlaceholder = access::placeholder::false_t>
-class read_accessor : public accessor<DataT, Dimensions, access::mode::read, AccessTarget, IsPlaceholder>
-{
-    constexpr static int AdjustedDim = Dimensions == 0 ? 1 : Dimensions;
-
-    void __init(typename accessor<DataT, Dimensions, access::mode::read, AccessTarget, IsPlaceholder>::ConcreteASPtrType Ptr,
-                range<AdjustedDim> AccessRange, range<AdjustedDim> MemRange, id<AdjustedDim> Offset) {
-        accessor<DataT, Dimensions, access::mode::read, AccessTarget, IsPlaceholder>::__init(Ptr, AccessRange, MemRange, Offset);
-    }
-
-    public:
-    read_accessor() : accessor<DataT, Dimensions, access::mode::read, AccessTarget, IsPlaceholder>() {}
-
-    template< typename AllocatorT > 
-    read_accessor( buffer<DataT,Dimensions,AllocatorT>& buf, target_tag_t<AccessTarget> = target_tag_t<AccessTarget>{} ) :
-        accessor<DataT, Dimensions, access::mode::read, AccessTarget, IsPlaceholder>( buf ) {}
-
-    template< typename AllocatorT > 
-    read_accessor( buffer<DataT,Dimensions,AllocatorT>& buf, range<Dimensions> r, target_tag_t<AccessTarget> = target_tag_t<AccessTarget>{} ) :
-        accessor<DataT, Dimensions, access::mode::read, AccessTarget, IsPlaceholder>( buf, r ) {}
-
-    template< typename AllocatorT > 
-    read_accessor( buffer<DataT,Dimensions,AllocatorT>& buf, handler &commandGroupHandlerRef, target_tag_t<AccessTarget> = target_tag_t<AccessTarget>{} ) :
-        accessor<DataT, Dimensions, access::mode::read, AccessTarget, IsPlaceholder>( buf, commandGroupHandlerRef ) {}
-};
-
-template< typename DataT, int Dimensions, typename AllocatorT >
-read_accessor(buffer<DataT,Dimensions,AllocatorT>) ->
-    read_accessor<DataT,Dimensions,target::global_buffer,access::placeholder::true_t>;
-
-template< typename DataT, int Dimensions, typename AllocatorT, target AccessTarget >
-read_accessor(buffer<DataT,Dimensions,AllocatorT>, target_tag_t<AccessTarget>) ->
-    read_accessor<DataT,Dimensions,AccessTarget,access::placeholder::true_t>;
-
-template< typename DataT, int Dimensions, typename AllocatorT >
-read_accessor(buffer<DataT,Dimensions,AllocatorT>, range<Dimensions>) ->
-    read_accessor<DataT,Dimensions,target::global_buffer,access::placeholder::true_t>;
-
-template< typename DataT, int Dimensions, typename AllocatorT, target AccessTarget >
-read_accessor(buffer<DataT,Dimensions,AllocatorT>, range<Dimensions>, target_tag_t<AccessTarget>) ->
-    read_accessor<DataT,Dimensions,AccessTarget,access::placeholder::true_t>;
-
-/*
-template< typename DataT, int Dimensions, typename AllocatorT >
-read_accessor(buffer<DataT,Dimensions,AllocatorT>, handler) ->
-    read_accessor<DataT,Dimensions,target::global_buffer,access::placeholder::false_t>;
-
-template< typename DataT, int Dimensions, typename AllocatorT >
-read_accessor(buffer<DataT,Dimensions,AllocatorT>, handler, range<Dimensions>) ->
-    read_accessor<DataT,Dimensions,target::global_buffer,access::placeholder::false_t>;
-*/
 
 template <typename DataT, int Dimensions, access_mode AccessMode = access_mode::read_write>
 class host_accessor : public accessor<DataT, Dimensions, AccessMode, target::host_buffer, access::placeholder::false_t>

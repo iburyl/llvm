@@ -41,6 +41,9 @@ namespace queue {
 class enable_profiling;
 } // namespace queue
 
+class constant_buffer;
+class uninitialized;
+
 namespace detail {
 
 // List of all properties' IDs.
@@ -114,6 +117,11 @@ RegisterProp(PropKind::QueueEnableProfiling, queue::enable_profiling);
 // Sentinel, needed for automatic build of tuple in property_list.
 RegisterProp(PropKind::PropKindSize, PropBase);
 
+// Buffer
+RegisterProp(PropKind::Unintialized, unintialized);
+RegisterProp(PropKind::ConstantBuffer, constant_buffer);
+
+
 // Common class for use_mutex in buffer and image namespaces.
 template <PropKind PropKindT> class UseMutexBase : public Prop<PropKindT> {
 public:
@@ -173,6 +181,10 @@ namespace queue {
 class enable_profiling
     : public detail::Prop<detail::PropKind::QueueEnableProfiling> {};
 } // namespace queue
+
+class constant_buffer : public detail::Prop<detail::PropKind::ConstantBuffer> {};
+
+class unintialized : public detail::Prop<detail::PropKind::Unintialized> {};
 
 } // namespace property
 

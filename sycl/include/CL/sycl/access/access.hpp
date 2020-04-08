@@ -33,17 +33,6 @@ namespace access {
   using sycl::target;
 }
 
-#if __cplusplus > 201402L
-
-template <target value>
-struct target_tag_t {
-  explicit target_tag_t() = default;
-};
-inline constexpr target_tag_t<target::global>   global_target_tag{};
-inline constexpr target_tag_t<target::constant> constant_target_tag{};
-
-#endif
-
 namespace access {
   enum class mode {
     read = 1024,
@@ -64,30 +53,20 @@ namespace access {
 
 #if __cplusplus > 201402L
 
-template <access::placeholder value>
-struct placeholder_tag_t {
-  explicit placeholder_tag_t() = default;
-};
-inline constexpr placeholder_tag_t<access::placeholder::true_t> placeholder_tag{};
-
-template <target target_value, access::placeholder value>
-struct placeholder_target_tag_t {
-  explicit placeholder_target_tag_t() = default;
-};
-template <target target_value>
-inline constexpr placeholder_target_tag_t<target_value, access::placeholder::true_t> placeholder_target_tag{};
-
 template <access_mode mode>
 struct mode_tag_t {
   explicit mode_tag_t() = default;
 };
-inline constexpr mode_tag_t<access_mode::read>               read_tag{};
-inline constexpr mode_tag_t<access_mode::read_write>         read_write_tag{};
-inline constexpr mode_tag_t<access_mode::write>              write_tag{};
-inline constexpr mode_tag_t<access_mode::discard_write>      unintialized_write_tag{};
-inline constexpr mode_tag_t<access_mode::discard_read_write> unintialized_tag{};
 
+template <access_mode mode, target trgt>
+struct mode_target_tag_t {
+  explicit mode_target_tag_t() = default;
+};
 
+inline constexpr mode_tag_t<access_mode::read>                                 read_tag{};
+inline constexpr mode_tag_t<access_mode::read_write>                           read_write_tag{};
+inline constexpr mode_tag_t<access_mode::write>                                write_tag{};
+inline constexpr mode_target_tag_t<access_mode::read, target::constant_buffer> read_constant_tag{};
 
 #endif
 

@@ -208,7 +208,7 @@ int main() {
 
       Queue.submit([&](sycl::handler& cgh) {
         //auto dev_acc = buf.get_access<sycl::access::mode::discard_write>(cgh);
-        sycl::accessor dev_acc(buf, cgh, sycl::unintialized_write_tag);
+        sycl::accessor dev_acc(buf, cgh, sycl::property::uninitialized{});
 
         cgh.parallel_for<class test_discard_write>(
             sycl::range<1>{3},
@@ -243,7 +243,7 @@ int main() {
       });
 
       //auto host_acc = buf.get_access<sycl::access::mode::discard_read_write>();
-      sycl::host_accessor host_acc(buf, sycl::unintialized_tag);
+      sycl::host_accessor host_acc(buf, sycl::property::uninitialized{});
     } catch (cl::sycl::exception e) {
       std::cout << "SYCL exception caught: " << e.what();
       return 1;
@@ -467,7 +467,7 @@ int main() {
         queue.submit([&](sycl::handler &cgh) {
 
           sycl::accessor D(d, cgh, sycl::write_tag);
-          sycl::accessor C(c, cgh, sycl::read_tag, sycl::constant_target_tag);
+          sycl::accessor C(c, cgh, sycl::read_constant_tag);
 
           cgh.single_task<class acc_with_const>([=]() {
             D[0] = C[0];
@@ -494,7 +494,7 @@ int main() {
         sycl::buffer<int, 1> c(&cnst, sycl::range<1>(1));
 
         sycl::accessor D(d, sycl::write_tag);
-        sycl::accessor C(c, sycl::read_tag, sycl::constant_target_tag);
+        sycl::accessor C(c, sycl::read_constant_tag);
         
         sycl::queue queue;
         queue.submit([&](sycl::handler &cgh) {

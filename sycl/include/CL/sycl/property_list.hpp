@@ -41,7 +41,6 @@ namespace queue {
 class enable_profiling;
 } // namespace queue
 
-class constant_buffer;
 class uninitialized;
 
 namespace detail {
@@ -60,6 +59,9 @@ enum PropKind {
 
   // Queue properties
   QueueEnableProfiling,
+
+  // Accessor
+  Uninitialized,
 
   PropKindSize
 };
@@ -114,12 +116,11 @@ RegisterProp(PropKind::BufferContextBound, buffer::context_bound);
 // Queue
 RegisterProp(PropKind::QueueEnableProfiling, queue::enable_profiling);
 
+// Buffer
+RegisterProp(PropKind::Uninitialized, uninitialized);
+
 // Sentinel, needed for automatic build of tuple in property_list.
 RegisterProp(PropKind::PropKindSize, PropBase);
-
-// Buffer
-RegisterProp(PropKind::Unintialized, unintialized);
-RegisterProp(PropKind::ConstantBuffer, constant_buffer);
 
 
 // Common class for use_mutex in buffer and image namespaces.
@@ -182,9 +183,7 @@ class enable_profiling
     : public detail::Prop<detail::PropKind::QueueEnableProfiling> {};
 } // namespace queue
 
-class constant_buffer : public detail::Prop<detail::PropKind::ConstantBuffer> {};
-
-class unintialized : public detail::Prop<detail::PropKind::Unintialized> {};
+class uninitialized : public detail::Prop<detail::PropKind::Uninitialized> {};
 
 } // namespace property
 

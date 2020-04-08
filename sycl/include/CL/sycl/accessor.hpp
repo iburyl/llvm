@@ -850,15 +850,13 @@ public:
   accessor(buffer<DataT, Dimensions, AllocatorT> &BufferRef, mode_tag_t<AccessMode>,
            const property_list &propList = {}) : accessor(BufferRef) {}
 
-/* Tag - centric option
-
   template <int Dims = Dimensions, typename AllocatorT,
             typename detail::enable_if_t<
                 (Dims > 0) && ((!IsPlaceH && IsHostBuf) ||
                                (IsPlaceH && (IsGlobalBuf || IsConstantBuf)))>
                 * = nullptr>
-  accessor(buffer<DataT, Dimensions, AllocatorT> &BufferRef, mode_tag_t<AccessMode>, target_tag_t<AccessTarget>) : accessor(BufferRef) {}
-*/
+  accessor(buffer<DataT, Dimensions, AllocatorT> &BufferRef, mode_target_tag_t<AccessMode, AccessTarget>,
+           const property_list &propList = {}) : accessor(BufferRef) {}
 
   template <int Dims = Dimensions, typename AllocatorT,
             typename = detail::enable_if_t<
@@ -867,13 +865,12 @@ public:
            handler &CommandGroupHandler, mode_tag_t<AccessMode>,
            const property_list &propList = {}) : accessor(BufferRef, CommandGroupHandler) {}
 
-/* Tag - centric option
   template <int Dims = Dimensions, typename AllocatorT,
             typename = detail::enable_if_t<
                 (Dims > 0) && (!IsPlaceH && (IsGlobalBuf || IsConstantBuf))>>
   accessor(buffer<DataT, Dimensions, AllocatorT> &BufferRef,
-           handler &CommandGroupHandler, mode_tag_t<AccessMode>, target_tag_t<AccessTarget>) : accessor(BufferRef, CommandGroupHandler) {}
-*/
+           handler &CommandGroupHandler, mode_target_tag_t<AccessMode, AccessTarget>,
+           const property_list &propList = {}) : accessor(BufferRef, CommandGroupHandler) {}
 
 #endif
 
@@ -1297,31 +1294,40 @@ public:
 
 #if __cplusplus > 201402L
 
-template< typename DataT, int Dimensions, typename AllocatorT >
-accessor(buffer<DataT,Dimensions,AllocatorT>) -> accessor<DataT,Dimensions,access::mode::read_write,target::global_buffer, access::placeholder::true_t>;
+/* When placeholder becomes a truly runtime parameter, deduction guidelines might go away to large extend. */
 
-template< typename DataT, int Dimensions, typename AllocatorT, access_mode AccessMode >
-accessor(buffer<DataT,Dimensions,AllocatorT>, mode_tag_t<AccessMode>) -> accessor<DataT,Dimensions,AccessMode,target::global_buffer, access::placeholder::true_t>;
+template< typename DataT, int Dimensions, typename AllocatorT, typename... Ts >
+accessor(buffer<DataT,Dimensions,AllocatorT>, Ts...) ->
+    accessor<DataT,Dimensions,access::mode::read_write,target::global_buffer, access::placeholder::true_t>;
 
-template< typename DataT, int Dimensions, typename AllocatorT, access_mode AccessMode, target AccessTarget >
-accessor(buffer<DataT,Dimensions,AllocatorT>, mode_tag_t<AccessMode>, target_tag_t<AccessTarget>) -> accessor<DataT,Dimensions,AccessMode,AccessTarget, access::placeholder::true_t>;
+template< typename DataT, int Dimensions, typename AllocatorT, access_mode AccessMode, typename... Ts >
+accessor(buffer<DataT,Dimensions,AllocatorT>, mode_tag_t<AccessMode>, Ts...) ->
+    accessor<DataT,Dimensions,AccessMode,target::global_buffer, access::placeholder::true_t>;
 
-template< typename DataT, int Dimensions, typename AllocatorT >
-accessor(buffer<DataT,Dimensions,AllocatorT>, range<Dimensions>) -> accessor<DataT,Dimensions,access::mode::read_write,target::global_buffer, access::placeholder::true_t>;
+template< typename DataT, int Dimensions, typename AllocatorT, access_mode AccessMode, target AccessTarget, typename... Ts >
+accessor(buffer<DataT,Dimensions,AllocatorT>, mode_target_tag_t<AccessMode,AccessTarget>, Ts...) ->
+    accessor<DataT,Dimensions,AccessMode,AccessTarget, access::placeholder::true_t>;
+
+template< typename DataT, int Dimensions, typename AllocatorT, typename... Ts >
+accessor(buffer<DataT,Dimensions,AllocatorT>, range<Dimensions>, Ts...) ->
+    accessor<DataT,Dimensions,access::mode::read_write,target::global_buffer, access::placeholder::true_t>;
 
 
-template< typename DataT, int Dimensions, typename AllocatorT >
-accessor(buffer<DataT,Dimensions,AllocatorT>, handler) -> accessor<DataT,Dimensions,access::mode::read_write,target::global_buffer>;
+template< typename DataT, int Dimensions, typename AllocatorT, typename... Ts >
+accessor(buffer<DataT,Dimensions,AllocatorT>, handler, Ts...) ->
+    accessor<DataT,Dimensions,access::mode::read_write,target::global_buffer>;
 
-template< typename DataT, int Dimensions, typename AllocatorT, access_mode AccessMode >
-accessor(buffer<DataT,Dimensions,AllocatorT>, handler, mode_tag_t<AccessMode>) -> accessor<DataT,Dimensions,AccessMode,target::global_buffer>;
+template< typename DataT, int Dimensions, typename AllocatorT, access_mode AccessMode, typename... Ts >
+accessor(buffer<DataT,Dimensions,AllocatorT>, handler, mode_tag_t<AccessMode>, Ts...) ->
+    accessor<DataT,Dimensions,AccessMode,target::global_buffer, access::placeholder::false_t>;
 
-template< typename DataT, int Dimensions, typename AllocatorT, access_mode AccessMode, target AccessTarget >
-accessor(buffer<DataT,Dimensions,AllocatorT>, handler, mode_tag_t<AccessMode>, target_tag_t<AccessTarget>) -> accessor<DataT,Dimensions,AccessMode,AccessTarget>;
+template< typename DataT, int Dimensions, typename AllocatorT, access_mode AccessMode, target AccessTarget, typename... Ts >
+accessor(buffer<DataT,Dimensions,AllocatorT>, handler, mode_target_tag_t<AccessMode,AccessTarget>, Ts...) ->
+    accessor<DataT,Dimensions,AccessMode,AccessTarget, access::placeholder::false_t>;
 
-template< typename DataT, int Dimensions, typename AllocatorT >
-accessor(buffer<DataT,Dimensions,AllocatorT>, handler, range<Dimensions>) -> accessor<DataT,Dimensions,access::mode::read_write,target::global_buffer>;
-
+template< typename DataT, int Dimensions, typename AllocatorT, typename... Ts >
+accessor(buffer<DataT,Dimensions,AllocatorT>, handler, range<Dimensions>, Ts...) ->
+    accessor<DataT,Dimensions,access::mode::read_write,target::global_buffer>;
 
 template <typename DataT, int Dimensions, access_mode AccessMode = access_mode::read_write>
 class host_accessor : public accessor<DataT, Dimensions, AccessMode, target::host_buffer, access::placeholder::false_t>
@@ -1338,19 +1344,23 @@ class host_accessor : public accessor<DataT, Dimensions, AccessMode, target::hos
         accessor<DataT, Dimensions, AccessMode, target::host_buffer, access::placeholder::false_t>() {}
 
     template< typename AllocatorT > 
-    host_accessor( buffer<DataT,Dimensions,AllocatorT>& buf ) :
+    host_accessor( buffer<DataT,Dimensions,AllocatorT>& buf,
+                   const property_list &propList = {} ) :
         accessor<DataT, Dimensions, AccessMode, target::host_buffer, access::placeholder::false_t>( buf ) {}
 
     template< typename AllocatorT > 
-    host_accessor( buffer<DataT,Dimensions,AllocatorT>& buf, mode_tag_t<AccessMode> ) :
+    host_accessor( buffer<DataT,Dimensions,AllocatorT>& buf, mode_tag_t<AccessMode>,
+                   const property_list &propList = {} ) :
         accessor<DataT, Dimensions, AccessMode, target::host_buffer, access::placeholder::false_t>( buf ) {}
 
     template< typename AllocatorT > 
-    host_accessor( buffer<DataT,Dimensions,AllocatorT>& buf, range<Dimensions> r ) :
+    host_accessor( buffer<DataT,Dimensions,AllocatorT>& buf, range<Dimensions> r,
+                   const property_list &propList = {} ) :
         accessor<DataT, Dimensions, AccessMode, target::host_buffer, access::placeholder::false_t>( buf, r ) {}
 
     template< typename AllocatorT > 
-    host_accessor( buffer<DataT,Dimensions,AllocatorT>& buf, range<Dimensions> r, mode_tag_t<AccessMode> ) :
+    host_accessor( buffer<DataT,Dimensions,AllocatorT>& buf, range<Dimensions> r, mode_tag_t<AccessMode>,
+                   const property_list &propList = {} ) :
         accessor<DataT, Dimensions, AccessMode, target::host_buffer, access::placeholder::false_t>( buf, r ) {}
 };
 

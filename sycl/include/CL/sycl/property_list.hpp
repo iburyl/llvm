@@ -41,7 +41,7 @@ namespace queue {
 class enable_profiling;
 } // namespace queue
 
-class uninitialized;
+class noinit;
 
 namespace detail {
 
@@ -61,7 +61,7 @@ enum PropKind {
   QueueEnableProfiling,
 
   // Accessor
-  Uninitialized,
+  NoInit,
 
   PropKindSize
 };
@@ -117,7 +117,7 @@ RegisterProp(PropKind::BufferContextBound, buffer::context_bound);
 RegisterProp(PropKind::QueueEnableProfiling, queue::enable_profiling);
 
 // Buffer
-RegisterProp(PropKind::Uninitialized, uninitialized);
+RegisterProp(PropKind::NoInit, noinit);
 
 // Sentinel, needed for automatic build of tuple in property_list.
 RegisterProp(PropKind::PropKindSize, PropBase);
@@ -183,9 +183,11 @@ class enable_profiling
     : public detail::Prop<detail::PropKind::QueueEnableProfiling> {};
 } // namespace queue
 
-class uninitialized : public detail::Prop<detail::PropKind::Uninitialized> {};
+class noinit : public detail::Prop<detail::PropKind::NoInit> {};
 
 } // namespace property
+
+using property::noinit;
 
 class property_list {
 

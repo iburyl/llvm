@@ -17,7 +17,7 @@
 #define STRINGIFY_LINE_HELP(s) #s
 #define STRINGIFY_LINE(s) STRINGIFY_LINE_HELP(s)
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
@@ -27,7 +27,7 @@ namespace detail {
 
 #define CONFIG(Name, MaxSize, CompileTimeDef)                                  \
   const char *SYCLConfigBase<Name>::MValueFromFile = nullptr;                  \
-  char SYCLConfigBase<Name>::MStorage[MaxSize];                                \
+  char SYCLConfigBase<Name>::MStorage[MaxSize + 1];                            \
   const char *const SYCLConfigBase<Name>::MCompileTimeDef =                    \
       getStrOrNullptr(STRINGIFY_LINE(CompileTimeDef));                         \
   const char *const SYCLConfigBase<Name>::MConfigName = STRINGIFY_LINE(Name);
@@ -40,6 +40,7 @@ static void initValue(const char *Key, const char *Value) {
 #define CONFIG(Name, MaxSize, CompileTimeDef)                                  \
   if (0 == strncmp(Key, SYCLConfigBase<Name>::MConfigName, MAX_CONFIG_NAME)) { \
     strncpy(SYCLConfigBase<Name>::MStorage, Value, MaxSize);                   \
+    SYCLConfigBase<Name>::MStorage[MaxSize] = '\0';                            \
     SYCLConfigBase<Name>::MValueFromFile = SYCLConfigBase<Name>::MStorage;     \
     return;                                                                    \
   }
@@ -103,7 +104,7 @@ void readConfig() {
 void dumpConfig() {
 #define CONFIG(Name, MaxSize, CompileTimeDef)                                  \
   {                                                                            \
-    const char *Val = SYCLConfig<Name>::get();                                 \
+    const char *Val = SYCLConfigBase<Name>::getRawValue();                     \
     std::cerr << SYCLConfigBase<Name>::MConfigName << " : "                    \
               << (Val ? Val : "unset") << std::endl;                           \
   }
@@ -111,7 +112,7 @@ void dumpConfig() {
 #undef CONFIG
 }
 
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)
 } // namespace sycl
 } // namespace detail
 

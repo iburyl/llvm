@@ -140,7 +140,8 @@ def NoEscapeDocs : Documentation {
 the compiler that the pointer cannot escape: that is, no reference to the object
 the pointer points to that is derived from the parameter value will survive
 after the function returns. Users are responsible for making sure parameters
-annotated with ``noescape`` do not actuallly escape.
+annotated with ``noescape`` do not actually escape. Calling ``free()`` on such
+a parameter does not constitute an escape.
 
 For example:
 
@@ -260,6 +261,7 @@ The ``sycl_kernel`` attribute specifies that a function template will be used
 to outline device code and to generate an OpenCL kernel.
 Here is a code example of the SYCL program, which demonstrates the compiler's
 outlining job:
+
 .. code-block:: c++
 
   int foo(int x) { return ++x; }
@@ -282,27 +284,29 @@ compilation of functions for the device part can be found in the SYCL 1.2.1
 specification Section 6.4.
 To show to the compiler entry point to the "device part" of the code, the SYCL
 runtime can use the ``sycl_kernel`` attribute in the following way:
-.. code-block:: c++
-namespace cl {
-namespace sycl {
-class handler {
-  template <typename KernelName, typename KernelType/*, ...*/>
-  __attribute__((sycl_kernel)) void sycl_kernel_function(KernelType KernelFuncObj) {
-    // ...
-    KernelFuncObj();
-  }
 
-  template <typename KernelName, typename KernelType, int Dims>
-  void parallel_for(range<Dims> NumWorkItems, KernelType KernelFunc) {
-#ifdef __SYCL_DEVICE_ONLY__
-    sycl_kernel_function<KernelName, KernelType, Dims>(KernelFunc);
-#else
-    // Host implementation
-#endif
-  }
-};
-} // namespace sycl
-} // namespace cl
+.. code-block:: c++
+
+  namespace cl {
+  namespace sycl {
+  class handler {
+    template <typename KernelName, typename KernelType/*, ...*/>
+    __attribute__((sycl_kernel)) void sycl_kernel_function(KernelType KernelFuncObj) {
+      // ...
+      KernelFuncObj();
+    }
+
+    template <typename KernelName, typename KernelType, int Dims>
+    void parallel_for(range<Dims> NumWorkItems, KernelType KernelFunc) {
+  #ifdef __SYCL_DEVICE_ONLY__
+      sycl_kernel_function<KernelName, KernelType, Dims>(KernelFunc);
+  #else
+      // Host implementation
+  #endif
+    }
+  };
+  } // namespace sycl
+  } // namespace cl
 
 The compiler will also generate an OpenCL kernel using the function marked with
 the ``sycl_kernel`` attribute.
@@ -481,7 +485,7 @@ parameter.
 Note that this attribute merely informs the compiler that a function always
 returns a sufficiently aligned pointer. It does not cause the compiler to
 emit code to enforce that alignment.  The behavior is undefined if the returned
-poitner is not sufficiently aligned.
+pointer is not sufficiently aligned.
   }];
 }
 
@@ -939,11 +943,11 @@ The behavior of a function with respect to reference counting for Foundation
 convention (e.g. functions starting with "get" are assumed to return at
 ``+0``).
 
-It can be overriden using a family of the following attributes.  In
+It can be overridden using a family of the following attributes.  In
 Objective-C, the annotation ``__attribute__((ns_returns_retained))`` applied to
 a function communicates that the object is returned at ``+1``, and the caller
 is responsible for freeing it.
-Similiarly, the annotation ``__attribute__((ns_returns_not_retained))``
+Similarly, the annotation ``__attribute__((ns_returns_not_retained))``
 specifies that the object is returned at ``+0`` and the ownership remains with
 the callee.
 The annotation ``__attribute__((ns_consumes_self))`` specifies that
@@ -1287,7 +1291,7 @@ correspond to different platforms. For most platforms, the availability
 attribute with the platform corresponding to the target platform will be used;
 any others will be ignored. However, the availability for ``watchOS`` and
 ``tvOS`` can be implicitly inferred from an ``iOS`` availability attribute.
-Any explicit availability attributes for those platforms are still prefered over
+Any explicit availability attributes for those platforms are still preferred over
 the implicitly inferred availability attributes. If no availability attribute
 specifies availability for the current target platform, the availability
 attributes are ignored. Supported platforms are:
@@ -1395,7 +1399,7 @@ pragma rather than using the inferred ``iOS`` availability from the declaration:
   void getsThePragmaTVOSAvailabilityAttribute(void) __attribute__((availability(iOS,introduced=11.0)));
   #pragma clang attribute pop
 
-The compiler is also able to apply implicly inferred attributes from a pragma
+The compiler is also able to apply implicitly inferred attributes from a pragma
 as well. For example, when targeting ``tvOS``, the function below will receive
 a ``tvOS`` availability attribute that is implicitly inferred from the ``iOS``
 availability attribute applied by the pragma:
@@ -1713,7 +1717,7 @@ def BPFPreserveAccessIndexDocs : Documentation {
 Clang supports the ``__attribute__((preserve_access_index))``
 attribute for the BPF target. This attribute may be attached to a
 struct or union declaration, where if -g is specified, it enables
-preserving struct or union member access debuginfo indicies of this
+preserving struct or union member access debuginfo indices of this
 struct or union, similar to clang ``__builtin_preserve_acceess_index()``.
   }];
 }
@@ -1729,7 +1733,7 @@ directly as an interrupt service routine.
 
 By default, the compiler will produce a function prologue and epilogue suitable for
 an interrupt service routine that handles an External Interrupt Controller (eic)
-generated interrupt. This behaviour can be explicitly requested with the "eic"
+generated interrupt. This behavior can be explicitly requested with the "eic"
 argument.
 
 Otherwise, for use with vectored interrupt mode, the argument passed should be
@@ -1932,6 +1936,26 @@ pointer address bits to bank on.
   }];
 }
 
+def IntelFPGAForcePow2DepthAttrDocs : Documentation {
+  let Category = DocCatVariable;
+  let Heading = "force_pow2_depth (IntelFPGA)";
+  let Content = [{
+This attribute may be attached to a variable or struct member declaration and
+provides explicit control over the geometry of memory blocks used in a given
+memory system.
+
+In the presence of this attribute, the compiler:
+
+1. Will automatically size the memory depth to the next largest power of 2 if
+force_pow2_depth is set to 1, and will prefer width-stitching of RAM blocks
+over depth-stitching.
+
+2. Will not size the memory to the next largest power of 2 if force_pow2_depth
+is set to 0, and will prefer depth-stitching over width-stitching if RAM usage
+can be lowered.
+  }];
+}
+
 def SYCLIntelKernelArgsRestrictDocs : Documentation {
   let Category = DocCatVariable;
   let Heading = "kernel_args_restrict";
@@ -1980,6 +2004,36 @@ device kernel, the attribute is ignored and it is not propagated to a kernel.
   }];
 }
 
+def ReqdWorkGroupSizeAttrDocs : Documentation {
+  let Category = DocCatFunction;
+  let Heading = "reqd_work_group_size";
+  let Content = [{
+This attribute is documented by both OpenCL and SYCL standards
+and allows to specify exact *local_work_size* which must be used as
+argument to **clEnqueueNDRangeKernel** (in OpenCL) or to
+**parallel_for** in SYCL. This allows the compiler to optimize the
+generated code appropriately for the kernel to which attribute is applied.
+
+While semantic of this attribute is the same between OpenCL and SYCL,
+spelling is a bit different: 
+
+SYCL 1.2.1 describes ``[[cl::reqd_work_group_size(X, Y, Z)]]`` spelling: this
+attribute is legal on device functions and is propagated down to any caller of 
+those device functions, such that the kernel attributes are the sum of all 
+attributes of all device functions called in this kernel.
+See section 6.7 Attributes for more details.
+
+As Intel extension, ``[[intel::reqd_work_group_size(X, Y, Z)]]`` spelling is allowed
+which features optional arguments `Y` and `Z`, those simplifies its usage if
+only 1- or 2-dimensional ND-range is assumed by a programmer. These arguments
+defaults to ``1``.
+
+In OpenCL C, this attribute is available in GNU spelling
+(``__attribute__((reqd_work_group_size(X, Y, Z)))``), see section
+6.7.2 Optional Attribute Qualifiers of OpenCL 1.2 specification for details.
+  }];
+}
+
 def SYCLIntelMaxWorkGroupSizeAttrDocs : Documentation {
   let Category = DocCatFunction;
   let Heading = "max_work_group_size (IntelFPGA)";
@@ -2009,13 +2063,14 @@ device kernel, the attribute is ignored and it is not propagated to a kernel.
   }];
 }
 
-def SYCLIntelUsesGlobalWorkOffsetDocs : Documentation {
+def SYCLIntelNoGlobalWorkOffsetAttrDocs : Documentation {
   let Category = DocCatFunction;
-  let Heading = "uses_global_work_offset (IntelFPGA)";
+  let Heading = "no_global_work_offset (IntelFPGA)";
   let Content = [{
 Applies to a device function/lambda function or function call operator (of a
-function object). If 0, compiler doesn't use the global work offset values for
-the device function. Valid values are 0 and 1.
+function object). If 1, compiler doesn't use the global work offset values for
+the device function. Valid values are 0 and 1. If used without argument, value
+of 1 is set implicitly.
   }];
 }
 
@@ -2026,6 +2081,20 @@ def SYCLFPGAPipeDocs : Documentation {
 This attribute applies to a type to indicate that it is a pipe type.
 It requires a string argument that specifies if the pipe is read only or
 write only. Expected to be used only in SYCL headers.
+  }];
+}
+
+def SYCLIntelPipeIOAttrDocs : Documentation {
+  let Category = DocCatVariable;
+  let Heading = "IO pipe ID";
+  let Content = [{
+Add I/O attribute to SYCL pipe declaration to declare a special I/O pipe to
+interface with input or output features of an FPGA. These features might include
+network interfaces, PCIe, cameras, or other data capture or processing devices
+or protocols.
+
+The io_pipe_id(id) attribute specifies the I/O feature of an accelerator board
+with which a pipe interfaces. The id argument is the name of the I/O interface.
   }];
 }
 
@@ -2072,6 +2141,53 @@ be applied multiple times to the same loop.
   }];
 }
 
+def SYCLIntelFPGALoopCoalesceAttrDocs : Documentation {
+  let Category = DocCatVariable;
+  let Heading = "loop_coalesce";
+  let Content = [{
+This attribute applies to a loop. Indicates that the loop nest should be
+coalesced into a single loop without affecting functionality. Parameter N is
+optional. If specified, it shall be a positive integer, and indicates how many
+of the nested loop levels should be coalesced.
+  }];
+}
+
+def SYCLIntelFPGADisableLoopPipeliningAttrDocs : Documentation {
+  let Category = DocCatVariable;
+  let Heading = "disable_loop_pipelining";
+  let Content = [{
+This attribute applies to a loop. Disables pipelining of the loop data path,
+causing the loop to be executed serially. Cannot be used on the same loop in
+conjunction with max_interleaving, speculated_iterations, max_concurrency, ii
+or ivdep.
+  }];
+}
+
+def SYCLIntelFPGAMaxInterleavingAttrDocs : Documentation {
+  let Category = DocCatVariable;
+  let Heading = "max_interleaving";
+  let Content = [{
+This attribute applies to a loop. Places a maximum limit N on the number of
+interleaved invocations of an inner loop by an outer loop (note, this does not
+mean that this attribute can only be applied to inner loops in user code - outer
+loops in user code may still be contained in an implicit loop due to NDRange).
+Parameter N is mandatory, and shall be non-negative integer. Cannot be
+used on the same loop in conjunction with disable_loop_pipelining.
+  }];
+}
+
+def SYCLIntelFPGASpeculatedIterationsAttrDocs : Documentation {
+  let Category = DocCatVariable;
+  let Heading = "speculated_iterations";
+  let Content = [{
+This attribute applies to a loop. Specifies the number of concurrent speculated
+iterations that will be in flight for a loop invocation (i.e. the exit
+condition for these iterations will not have been evaluated yet).
+Parameter N is mandatory, and may either be 0, or a positive integer. Cannot be
+used on the same loop in conjunction with disable_loop_pipelining.
+  }];
+}
+
 def SYCLDeviceIndirectlyCallableDocs : Documentation {
   let Category = DocCatFunction;
   let Heading = "intel::device_indirectly_callable";
@@ -2079,8 +2195,8 @@ def SYCLDeviceIndirectlyCallableDocs : Documentation {
 This attribute can only be applied to functions and indicates that the
 function must be treated as a device function and must be emitted even if it has
 no direct uses from other SYCL device functions. However, it cannot be applied
-to functions marked as 'static', functions declared within an anonymous
-namespace or class member functions.
+to functions marked as 'static' and functions declared within an anonymous
+namespace.
 
 It also means that function should be available externally and
 cannot be optimized out due to reachability analysis or by any other
@@ -3697,8 +3813,8 @@ def OMPDeclareVariantDocs : Documentation {
   let Heading = "#pragma omp declare variant";
   let Content = [{
 The `declare variant` directive declares a specialized variant of a base
- function and specifies the context in which that specialized variant is used.
- The declare variant directive is a declarative directive.
+function and specifies the context in which that specialized variant is used.
+The declare variant directive is a declarative directive.
 The syntax of the `declare variant` construct is as follows:
 
   .. code-block:: none
@@ -3715,7 +3831,21 @@ where clause is one of the following:
     match(context-selector-specification)
 
 and where `variant-func-id` is the name of a function variant that is either a
- base language identifier or, for C++, a template-id.
+base language identifier or, for C++, a template-id.
+
+Clang provides the following context selector extensions, used via `implementation={extension(EXTENSION)}`:
+
+  .. code-block:: none
+
+    match_all
+    match_any
+    match_none
+
+The match extensions change when the *entire* context selector is considered a
+match for an OpenMP context. The default is `all`, with `none` no trait in the
+selector is allowed to be in the OpenMP context, with `any` a single trait in
+both the selector and OpenMP context is sufficient. Only a single match
+extension trait is allowed per context selector.
 
   }];
 }
@@ -4003,7 +4133,7 @@ using the Swift calling convention for a function or function pointer.
 The lowering for the Swift calling convention, as described by the Swift
 ABI documentation, occurs in multiple phases.  The first, "high-level"
 phase breaks down the formal parameters and results into innately direct
-and indirect components, adds implicit paraameters for the generic
+and indirect components, adds implicit parameters for the generic
 signature, and assigns the context and error ABI treatments to parameters
 where applicable.  The second phase breaks down the direct parameters
 and results from the first phase and assigns them to registers or the
@@ -4045,7 +4175,7 @@ of the first phase, as follows:
 ``swiftcall`` does not support variadic arguments or unprototyped functions.
 
 The parameter ABI treatment attributes are aspects of the function type.
-A function type which which applies an ABI treatment attribute to a
+A function type which applies an ABI treatment attribute to a
 parameter is a different type from an otherwise-identical function type
 that does not.  A single parameter may not have multiple ABI treatment
 attributes.
@@ -4174,7 +4304,7 @@ with different ABI versions supported. For example, a newer version of a class
 could have a different set of data members and thus have a different size. Using
 the ``abi_tag`` attribute, it is possible to have different mangled names for
 a global variable of the class type. Therefore, the old code could keep using
-the old manged name and the new code will use the new mangled name with tags.
+the old mangled name and the new code will use the new mangled name with tags.
   }];
 }
 
@@ -4322,17 +4452,15 @@ def PatchableFunctionEntryDocs : Documentation {
 before the function entry and N-M NOPs after the function entry. This attribute
 takes precedence over the command line option ``-fpatchable-function-entry=N,M``.
 ``M`` defaults to 0 if omitted.
-
-Currently, only M=0 is supported.
 }];
 }
 
 def TransparentUnionDocs : Documentation {
   let Category = DocCatDecl;
   let Content = [{
-This attribute can be applied to a union to change the behaviour of calls to
+This attribute can be applied to a union to change the behavior of calls to
 functions that have an argument with a transparent union type. The compiler
-behaviour is changed in the following manner:
+behavior is changed in the following manner:
 
 - A value whose type is any member of the transparent union can be passed as an
   argument without the need to cast that value.
@@ -4402,8 +4530,8 @@ ways:
   including calling the ``+initialize`` method if present.
 
 - The implicit ``_cmd`` parameter containing the method's selector is still defined.
- In order to minimize code-size costs, the implementation will not emit a reference
- to the selector if the parameter is unused within the method.
+  In order to minimize code-size costs, the implementation will not emit a reference
+  to the selector if the parameter is unused within the method.
 
 Symbols for direct method implementations are implicitly given hidden
 visibility, meaning that they can only be called within the same linkage unit.
@@ -4444,7 +4572,7 @@ documentation for more information.
 def ObjCDirectMembersDocs : Documentation {
   let Category = DocCatDecl;
   let Content = [{
-The ``objc_direct_members`` attribute can be placed on an  Objective-C
+The ``objc_direct_members`` attribute can be placed on an Objective-C
 ``@interface`` or ``@implementation`` to mark that methods declared
 therein should be considered direct by default.  See the documentation
 for ``objc_direct`` for more information about direct methods.
@@ -4453,9 +4581,7 @@ When ``objc_direct_members`` is placed on an ``@interface`` block, every
 method in the block is considered to be declared as direct.  This includes any
 implicit method declarations introduced by property declarations.  If the method
 redeclares a non-direct method, the declaration is ill-formed, exactly as if the
-method was annotated with the ``objc_direct`` attribute.  ``objc_direct_members``
-cannot be placed on the primary interface of a class, only on category or class
-extension interfaces.
+method was annotated with the ``objc_direct`` attribute.
 
 When ``objc_direct_members`` is placed on an ``@implementation`` block,
 methods defined in the block are considered to be declared as direct unless
@@ -4686,6 +4812,29 @@ it rather documents the programmer's intent.
   }];
 }
 
+def LoaderUninitializedDocs : Documentation {
+  let Category = DocCatVariable;
+  let Content = [{
+The ``loader_uninitialized`` attribute can be placed on global variables to
+indicate that the variable does not need to be zero initialized by the loader.
+On most targets, zero-initialization does not incur any additional cost.
+For example, most general purpose operating systems deliberately ensure
+that all memory is properly initialized in order to avoid leaking privileged
+information from the kernel or other programs. However, some targets
+do not make this guarantee, and on these targets, avoiding an unnecessary
+zero-initialization can have a significant impact on load times and/or code
+size.
+
+A declaration with this attribute is a non-tentative definition just as if it
+provided an initializer. Variables with this attribute are considered to be
+uninitialized in the same sense as a local variable, and the programs must
+write to them before reading from them. If the variable's type is a C++ class
+type with a non-trivial default constructor, or an array thereof, this attribute
+only suppresses the static zero-initialization of the variable, not the dynamic
+initialization provided by executing the default constructor.
+  }];
+}
+
 def CallbackDocs : Documentation {
   let Category = DocCatFunction;
   let Content = [{
@@ -4843,7 +4992,7 @@ When applied to the definition of a function, method, or block, every parameter
 of the function with implicit strong retainable object pointer type is
 considered externally-retained, and becomes ``const``. By explicitly annotating
 a parameter with ``__strong``, you can opt back into the default
-non-externally-retained behaviour for that parameter. For instance,
+non-externally-retained behavior for that parameter. For instance,
 ``first_param`` is externally-retained below, but not ``second_param``:
 
 .. code-block:: objc
@@ -4865,7 +5014,7 @@ def MIGConventionDocs : Documentation {
   The Mach Interface Generator release-on-success convention dictates
 functions that follow it to only release arguments passed to them when they
 return "success" (a ``kern_return_t`` error code that indicates that
-no errors have occured). Otherwise the release is performed by the MIG client
+no errors have occurred). Otherwise the release is performed by the MIG client
 that called the function. The annotation ``__attribute__((mig_server_routine))``
 is applied in order to specify which functions are expected to follow the
 convention. This allows the Static Analyzer to find bugs caused by violations of
@@ -4917,15 +5066,25 @@ only call one function.
 }];
 }
 
-def HIPPinnedShadowDocs : Documentation {
+def CUDADeviceBuiltinSurfaceTypeDocs : Documentation {
   let Category = DocCatType;
   let Content = [{
-The GNU style attribute __attribute__((hip_pinned_shadow)) or MSVC style attribute
-__declspec(hip_pinned_shadow) can be added to the definition of a global variable
-to indicate it is a HIP pinned shadow variable. A HIP pinned shadow variable can
-be accessed on both device side and host side. It has external linkage and is
-not initialized on device side. It has internal linkage and is initialized by
-the initializer on host side.
+The ``device_builtin_surface_type`` attribute can be applied to a class
+template when declaring the surface reference. A surface reference variable
+could be accessed on the host side and, on the device side, might be translated
+into an internal surface object, which is established through surface bind and
+unbind runtime APIs.
+  }];
+}
+
+def CUDADeviceBuiltinTextureTypeDocs : Documentation {
+  let Category = DocCatType;
+  let Content = [{
+The ``device_builtin_texture_type`` attribute can be applied to a class
+template when declaring the texture reference. A texture reference variable
+could be accessed on the host side and, on the device side, might be translated
+into an internal texture object, which is established through texture bind and
+unbind runtime APIs.
   }];
 }
 
@@ -4938,7 +5097,7 @@ def LifetimeOwnerDocs : Documentation {
 The attribute ``[[gsl::Owner(T)]]`` applies to structs and classes that own an
 object of type ``T``:
 
-.. code-block:: c++
+.. code::
 
   class [[gsl::Owner(int)]] IntOwner {
   private:
@@ -4964,7 +5123,7 @@ def LifetimePointerDocs : Documentation {
 The attribute ``[[gsl::Pointer(T)]]`` applies to structs and classes that behave
 like pointers to an object of type ``T``:
 
-.. code-block:: c++
+.. code::
 
   class [[gsl::Pointer(int)]] IntPointer {
   private:
@@ -4997,11 +5156,11 @@ When the Owner's lifetime ends, it will consider the Pointer to be dangling.
 }];
 }
 
-def ArmMveAliasDocs : Documentation {
+def ArmBuiltinAliasDocs : Documentation {
   let Category = DocCatFunction;
   let Content = [{
-This attribute is used in the implementation of the ACLE intrinsics
-for the Arm MVE instruction set. It allows the intrinsic functions to
+This attribute is used in the implementation of the ACLE intrinsics.
+It allows the intrinsic functions to
 be declared using the names defined in ACLE, and still be recognized
 as clang builtins equivalent to the underlying name. For example,
 ``arm_mve.h`` declares the function ``vaddq_u32`` with
@@ -5012,8 +5171,8 @@ recognized as that clang builtin, and in the latter case, the choice
 of which builtin to identify the function as can be deferred until
 after overload resolution.
 
-This attribute can only be used to set up the aliases for the MVE
-intrinsic functions; it is intended for use only inside ``arm_mve.h``,
+This attribute can only be used to set up the aliases for certain Arm
+intrinsic functions; it is intended for use only inside ``arm_*.h``
 and is not a general mechanism for declaring arbitrary aliases for
 clang builtin functions.
   }];
@@ -5023,7 +5182,7 @@ def NoBuiltinDocs : Documentation {
   let Category = DocCatFunction;
   let Content = [{
 .. Note:: This attribute is not yet fully implemented, it is validated but has
-no effect on the generated code.
+          no effect on the generated code.
 
 The ``__attribute__((no_builtin))`` is similar to the ``-fno-builtin`` flag
 except it is specific to the body of a function. The attribute may also be
@@ -5157,4 +5316,29 @@ other than overloading.
   int32x4_t result = function();
 
     }];
+}
+
+def ArmCmseNSCallDocs : Documentation {
+  let Category = DocCatType;
+  let Content = [{
+This attribute declares a non-secure function type.  When compiling for secure
+state, a call to such a function would switch from secure to non-secure state.
+All non-secure function calls must happen only through a function pointer, and
+a non-secure function type should only be used as a base type of a pointer.
+See `ARMv8-M Security Extensions: Requirements on Development
+Tools - Engineering Specification Documentation
+<https://developer.arm.com/docs/ecm0359818/latest/>`_ for more information.
+  }];
+}
+
+def ArmCmseNSEntryDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+This attribute declares a function that can be called from non-secure state, or
+from secure state. Entering from and returning to non-secure state would switch
+to and from secure state, respectively, and prevent flow of information
+to non-secure state, except via return values. See `ARMv8-M Security Extensions:
+Requirements on Development Tools - Engineering Specification Documentation
+<https://developer.arm.com/docs/ecm0359818/latest/>`_ for more information.
+  }];
 }

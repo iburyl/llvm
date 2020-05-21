@@ -6,40 +6,79 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/device_impl.hpp>
 #include <CL/sycl/device.hpp>
+#include <detail/device_impl.hpp>
 
 #include <algorithm>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
-device_impl::device_impl() : MIsHostDevice(true) {}
+device_impl::device_impl()
+    : MIsHostDevice(true),
+      MPlatform(std::make_shared<platform_impl>(platform_impl())) {}
 
-device_impl::device_impl(RT::PiDevice Device)
+device_impl::device_impl(pi_native_handle InteropDeviceHandle,
+                         const plugin &Plugin)
+    : device_impl(InteropDeviceHandle, nullptr, nullptr, Plugin) {}
+
+device_impl::device_impl(RT::PiDevice Device, PlatformImplPtr Platform)
+    : device_impl(reinterpret_cast<pi_native_handle>(nullptr), Device, Platform,
+                  Platform->getPlugin()) {}
+
+device_impl::device_impl(RT::PiDevice Device, const plugin &Plugin)
+    : device_impl(reinterpret_cast<pi_native_handle>(nullptr), Device, nullptr,
+                  Plugin) {}
+
+device_impl::device_impl(pi_native_handle InteropDeviceHandle,
+                         RT::PiDevice Device, PlatformImplPtr Platform,
+                         const plugin &Plugin)
     : MDevice(Device), MIsHostDevice(false) {
+
+  bool InteroperabilityConstructor = false;
+  if (Device == nullptr) {
+    assert(InteropDeviceHandle);
+    // Get PI device from the raw device handle.
+    Plugin.call<PiApiKind::piextDeviceCreateWithNativeHandle>(
+        InteropDeviceHandle, &MDevice);
+    InteroperabilityConstructor = true;
+  }
+
   // TODO catch an exception and put it to list of asynchronous exceptions
-  PI_CALL(piDeviceGetInfo)(MDevice, PI_DEVICE_INFO_TYPE,
-                           sizeof(RT::PiDeviceType), &MType, nullptr);
+  Plugin.call<PiApiKind::piDeviceGetInfo>(
+      MDevice, PI_DEVICE_INFO_TYPE, sizeof(RT::PiDeviceType), &MType, nullptr);
 
   RT::PiDevice parent = nullptr;
   // TODO catch an exception and put it to list of asynchronous exceptions
-  PI_CALL(piDeviceGetInfo)(MDevice, PI_DEVICE_INFO_PARENT, sizeof(RT::PiDevice),
-                           &parent, nullptr);
+  Plugin.call<PiApiKind::piDeviceGetInfo>(
+      MDevice, PI_DEVICE_INFO_PARENT_DEVICE, sizeof(RT::PiDevice), &parent, nullptr);
 
   MIsRootDevice = (nullptr == parent);
-  if (!MIsRootDevice) {
+  if (!MIsRootDevice && !InteroperabilityConstructor) {
     // TODO catch an exception and put it to list of asynchronous exceptions
-    PI_CALL(piDeviceRetain)(MDevice);
+    // Interoperability Constructor already calls DeviceRetain in
+    // piextDeviceFromNative.
+    Plugin.call<PiApiKind::piDeviceRetain>(MDevice);
   }
+
+  // set MPlatform
+  if (!Platform) {
+    RT::PiPlatform plt = nullptr; // TODO catch an exception and put it to list
+                                  // of asynchronous exceptions
+    Plugin.call<PiApiKind::piDeviceGetInfo>(MDevice, PI_DEVICE_INFO_PLATFORM,
+                                            sizeof(plt), &plt, nullptr);
+    Platform = std::make_shared<platform_impl>(plt, Plugin);
+  }
+  MPlatform = Platform;
 }
 
 device_impl::~device_impl() {
   if (!MIsRootDevice && !MIsHostDevice) {
     // TODO catch an exception and put it to list of asynchronous exceptions
-    CHECK_OCL_CODE_NO_EXC(
-        RT::PluginInformation.PiFunctionTable.piDeviceRelease(MDevice));
+    const detail::plugin &Plugin = getPlugin();
+    RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piDeviceRelease>(MDevice);
+    CHECK_OCL_CODE_NO_EXC(Err);
   }
 }
 
@@ -52,29 +91,19 @@ bool device_impl::is_affinity_supported(
 
 cl_device_id device_impl::get() const {
   if (MIsHostDevice)
-    throw invalid_object_error("This instance of device is a host instance");
+    throw invalid_object_error("This instance of device is a host instance",
+                               PI_INVALID_DEVICE);
 
+  const detail::plugin &Plugin = getPlugin();
   if (!MIsRootDevice) {
     // TODO catch an exception and put it to list of asynchronous exceptions
-    PI_CALL(piDeviceRetain)(MDevice);
+    Plugin.call<PiApiKind::piDeviceRetain>(MDevice);
   }
-  // TODO: check that device is an OpenCL interop one
-  return pi::cast<cl_device_id>(MDevice);
+  return pi::cast<cl_device_id>(getNative());
 }
 
 platform device_impl::get_platform() const {
-  if (MIsHostDevice)
-    return platform();
-
-  RT::PiPlatform plt = nullptr; // TODO catch an exception and put it to list of
-                      // asynchronous exceptions
-  PI_CALL(piDeviceGetInfo)(MDevice, PI_DEVICE_INFO_PLATFORM, sizeof(plt), &plt,
-                           nullptr);
-
-  // TODO: this possibly will violate common reference semantics,
-  // particularly, equality comparison may fail for two consecutive
-  // get_platform() on the same device, as it compares impl objects.
-  return createSyclObjFromImpl<platform>(std::make_shared<platform_impl>(plt));
+  return createSyclObjFromImpl<platform>(MPlatform);
 }
 
 bool device_impl::has_extension(const string_class &ExtensionName) const {
@@ -83,7 +112,8 @@ bool device_impl::has_extension(const string_class &ExtensionName) const {
     return false;
 
   string_class AllExtensionNames =
-      get_device_info<string_class, info::device::extensions>::get(MDevice);
+      get_device_info<string_class, info::device::extensions>::get(
+          this->getHandleRef(), this->getPlugin());
   return (AllExtensionNames.find(ExtensionName) != std::string::npos);
 }
 
@@ -99,8 +129,10 @@ device_impl::create_sub_devices(const cl_device_partition_property *Properties,
 
   vector_class<RT::PiDevice> SubDevices(SubDevicesCount);
   pi_uint32 ReturnedSubDevices = 0;
-  PI_CALL(piDevicePartition)(MDevice, Properties, SubDevicesCount,
-                             SubDevices.data(), &ReturnedSubDevices);
+  const detail::plugin &Plugin = getPlugin();
+  Plugin.call<PiApiKind::piDevicePartition>(MDevice, Properties,
+                                            SubDevicesCount, SubDevices.data(),
+                                            &ReturnedSubDevices);
   // TODO: check that returned number of sub-devices matches what was
   // requested, otherwise this walk below is wrong.
   //
@@ -110,9 +142,9 @@ device_impl::create_sub_devices(const cl_device_partition_property *Properties,
   //
   vector_class<device> res;
   std::for_each(SubDevices.begin(), SubDevices.end(),
-                [&res](const RT::PiDevice &a_pi_device) {
+                [&res, this](const RT::PiDevice &a_pi_device) {
                   device sycl_device = detail::createSyclObjFromImpl<device>(
-                      std::make_shared<device_impl>(a_pi_device));
+                      std::make_shared<device_impl>(a_pi_device, MPlatform));
                   res.push_back(sycl_device);
                 });
   return res;
@@ -124,7 +156,8 @@ device_impl::create_sub_devices(size_t ComputeUnits) const {
   if (MIsHostDevice)
     // TODO: implement host device partitioning
     throw runtime_error(
-        "Partitioning to subdevices of the host device is not implemented yet");
+        "Partitioning to subdevices of the host device is not implemented yet",
+        PI_INVALID_DEVICE);
 
   if (!is_partition_supported(info::partition_property::partition_equally)) {
     throw cl::sycl::feature_not_supported();
@@ -143,7 +176,8 @@ device_impl::create_sub_devices(const vector_class<size_t> &Counts) const {
   if (MIsHostDevice)
     // TODO: implement host device partitioning
     throw runtime_error(
-        "Partitioning to subdevices of the host device is not implemented yet");
+        "Partitioning to subdevices of the host device is not implemented yet",
+        PI_INVALID_DEVICE);
 
   if (!is_partition_supported(
           info::partition_property::partition_by_counts)) {
@@ -163,12 +197,8 @@ vector_class<device> device_impl::create_sub_devices(
   if (MIsHostDevice)
     // TODO: implement host device partitioning
     throw runtime_error(
-        "Partitioning to subdevices of the host device is not implemented yet");
-
-  // TODO: implement host device partitioning
-  if (MIsHostDevice)
-    throw runtime_error(
-        "Partitioning to subdevices of the host device is not implemented yet");
+        "Partitioning to subdevices of the host device is not implemented yet",
+        PI_INVALID_DEVICE);
 
   if (!is_partition_supported(
           info::partition_property::partition_by_affinity_domain) ||
@@ -183,6 +213,13 @@ vector_class<device> device_impl::create_sub_devices(
   return create_sub_devices(Properties, SubDevicesCount);
 }
 
+pi_native_handle device_impl::getNative() const {
+  auto Plugin = getPlugin();
+  pi_native_handle Handle;
+  Plugin.call<PiApiKind::piextDeviceGetNativeHandle>(getHandleRef(), &Handle);
+  return Handle;
+}
+
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

@@ -5,10 +5,12 @@ set(LLVM_LINK_COMPONENTS
   AllTargetsInfos
   AggressiveInstCombine
   Analysis
+  AsmParser
   BitWriter
   CodeGen
   Core
   Coroutines
+  Extensions
   IPO
   IRReader
   InstCombine
@@ -18,6 +20,7 @@ set(LLVM_LINK_COMPONENTS
   Remarks
   ScalarOpts
   Support
+  SYCLLowerIR
   Target
   TransformUtils
   Vectorize
@@ -33,13 +36,11 @@ add_llvm_tool(opt
   PrintSCC.cpp
   opt.cpp
 
-  ENABLE_PLUGINS
-
   DEPENDS
   intrinsics_gen
   SUPPORT_PLUGINS
   )
-export_executable_symbols(opt)
+export_executable_symbols_for_plugins(opt)
 
 if(LLVM_BUILD_EXAMPLES)
     target_link_libraries(opt PRIVATE ExampleIRTransforms)

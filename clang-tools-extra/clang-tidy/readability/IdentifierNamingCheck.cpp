@@ -8,17 +8,19 @@
 
 #include "IdentifierNamingCheck.h"
 
-#include "../utils/ASTUtils.h"
-#include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/AST/CXXInheritance.h"
-#include "clang/Frontend/CompilerInstance.h"
 #include "clang/Lex/PPCallbacks.h"
 #include "clang/Lex/Preprocessor.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMapInfo.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/Error.h"
 #include "llvm/Support/Format.h"
+#include "llvm/Support/Regex.h"
 
 #define DEBUG_TYPE "clang-tidy"
+
+// FixItHint
 
 using namespace clang::ast_matchers;
 
@@ -97,6 +99,16 @@ static StringRef const StyleNames[] = {
 #undef NAMING_KEYS
 // clang-format on
 
+static constexpr std::pair<StringRef, IdentifierNamingCheck::CaseType>
+    Mapping[] = {
+        {"aNy_CasE", IdentifierNamingCheck::CT_AnyCase},
+        {"lower_case", IdentifierNamingCheck::CT_LowerCase},
+        {"UPPER_CASE", IdentifierNamingCheck::CT_UpperCase},
+        {"camelBack", IdentifierNamingCheck::CT_CamelBack},
+        {"CamelCase", IdentifierNamingCheck::CT_CamelCase},
+        {"Camel_Snake_Case", IdentifierNamingCheck::CT_CamelSnakeCase},
+        {"camel_Snake_Back", IdentifierNamingCheck::CT_CamelSnakeBack}};
+
 namespace {
 /// Callback supplies macros to IdentifierNamingCheck::checkMacro
 class IdentifierNamingCheckPPCallbacks : public PPCallbacks {
@@ -126,64 +138,44 @@ private:
 
 IdentifierNamingCheck::IdentifierNamingCheck(StringRef Name,
                                              ClangTidyContext *Context)
-    : RenamerClangTidyCheck(Name, Context) {
-  auto const fromString = [](StringRef Str) {
-    return llvm::StringSwitch<llvm::Optional<CaseType>>(Str)
-        .Case("aNy_CasE", CT_AnyCase)
-        .Case("lower_case", CT_LowerCase)
-        .Case("UPPER_CASE", CT_UpperCase)
-        .Case("camelBack", CT_CamelBack)
-        .Case("CamelCase", CT_CamelCase)
-        .Case("Camel_Snake_Case", CT_CamelSnakeCase)
-        .Case("camel_Snake_Back", CT_CamelSnakeBack)
-        .Default(llvm::None);
-  };
+    : RenamerClangTidyCheck(Name, Context),
+      IgnoreFailedSplit(Options.get("IgnoreFailedSplit", false)),
+      IgnoreMainLikeFunctions(Options.get("IgnoreMainLikeFunctions", false)) {
 
   for (auto const &Name : StyleNames) {
-    auto const caseOptional =
-        fromString(Options.get((Name + "Case").str(), ""));
+    auto CaseOptional = [&]() -> llvm::Optional<CaseType> {
+      auto ValueOr = Options.get((Name + "Case").str(), makeArrayRef(Mapping));
+      if (ValueOr)
+        return *ValueOr;
+      llvm::logAllUnhandledErrors(
+          llvm::handleErrors(ValueOr.takeError(),
+                             [](const MissingOptionError &) -> llvm::Error {
+                               return llvm::Error::success();
+                             }),
+          llvm::errs(), "warning: ");
+      return llvm::None;
+    }();
+
     auto prefix = Options.get((Name + "Prefix").str(), "");
     auto postfix = Options.get((Name + "Suffix").str(), "");
 
-    if (caseOptional || !prefix.empty() || !postfix.empty()) {
-      NamingStyles.push_back(NamingStyle(caseOptional, prefix, postfix));
+    if (CaseOptional || !prefix.empty() || !postfix.empty()) {
+      NamingStyles.push_back(NamingStyle(CaseOptional, prefix, postfix));
     } else {
       NamingStyles.push_back(llvm::None);
     }
   }
-
-  IgnoreFailedSplit = Options.get("IgnoreFailedSplit", 0);
 }
 
 IdentifierNamingCheck::~IdentifierNamingCheck() = default;
 
 void IdentifierNamingCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
-  auto const toString = [](CaseType Type) {
-    switch (Type) {
-    case CT_AnyCase:
-      return "aNy_CasE";
-    case CT_LowerCase:
-      return "lower_case";
-    case CT_CamelBack:
-      return "camelBack";
-    case CT_UpperCase:
-      return "UPPER_CASE";
-    case CT_CamelCase:
-      return "CamelCase";
-    case CT_CamelSnakeCase:
-      return "Camel_Snake_Case";
-    case CT_CamelSnakeBack:
-      return "camel_Snake_Back";
-    }
-
-    llvm_unreachable("Unknown Case Type");
-  };
-
+  RenamerClangTidyCheck::storeOptions(Opts);
   for (size_t i = 0; i < SK_Count; ++i) {
     if (NamingStyles[i]) {
       if (NamingStyles[i]->Case) {
         Options.store(Opts, (StyleNames[i] + "Case").str(),
-                      toString(*NamingStyles[i]->Case));
+                      *NamingStyles[i]->Case, llvm::makeArrayRef(Mapping));
       }
       Options.store(Opts, (StyleNames[i] + "Prefix").str(),
                     NamingStyles[i]->Prefix);
@@ -193,6 +185,7 @@ void IdentifierNamingCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
   }
 
   Options.store(Opts, "IgnoreFailedSplit", IgnoreFailedSplit);
+  Options.store(Opts, "IgnoreMainLikeFunctions", IgnoreMainLikeFunctions);
 }
 
 static bool matchesStyle(StringRef Name,
@@ -257,7 +250,7 @@ static std::string fixupWithCase(StringRef Name,
   }
 
   if (Words.empty())
-    return Name;
+    return std::string(Name);
 
   std::string Fixup;
   switch (Case) {
@@ -324,6 +317,67 @@ static std::string fixupWithCase(StringRef Name,
   return Fixup;
 }
 
+static bool isParamInMainLikeFunction(const ParmVarDecl &ParmDecl,
+                                      bool IncludeMainLike) {
+  const auto *FDecl =
+      dyn_cast_or_null<FunctionDecl>(ParmDecl.getParentFunctionOrMethod());
+  if (!FDecl)
+    return false;
+  if (FDecl->isMain())
+    return true;
+  if (!IncludeMainLike)
+    return false;
+  if (FDecl->getAccess() != AS_public && FDecl->getAccess() != AS_none)
+    return false;
+  enum MainType { None, Main, WMain };
+  auto IsCharPtrPtr = [](QualType QType) -> MainType {
+    if (QType.isNull())
+      return None;
+    if (QType = QType->getPointeeType(), QType.isNull())
+      return None;
+    if (QType = QType->getPointeeType(), QType.isNull())
+      return None;
+    if (QType->isCharType())
+      return Main;
+    if (QType->isWideCharType())
+      return WMain;
+    return None;
+  };
+  auto IsIntType = [](QualType QType) {
+    if (QType.isNull())
+      return false;
+    if (const auto *Builtin =
+            dyn_cast<BuiltinType>(QType->getUnqualifiedDesugaredType())) {
+      return Builtin->getKind() == BuiltinType::Int;
+    }
+    return false;
+  };
+  if (!IsIntType(FDecl->getReturnType()))
+    return false;
+  if (FDecl->getNumParams() < 2 || FDecl->getNumParams() > 3)
+    return false;
+  if (!IsIntType(FDecl->parameters()[0]->getType()))
+    return false;
+  MainType Type = IsCharPtrPtr(FDecl->parameters()[1]->getType());
+  if (Type == None)
+    return false;
+  if (FDecl->getNumParams() == 3 &&
+      IsCharPtrPtr(FDecl->parameters()[2]->getType()) != Type)
+    return false;
+
+  if (Type == Main) {
+    static llvm::Regex Matcher(
+        "(^[Mm]ain([_A-Z]|$))|([a-z0-9_]Main([_A-Z]|$))|(_main(_|$))");
+    assert(Matcher.isValid() && "Invalid Matcher for main like functions.");
+    return Matcher.match(FDecl->getName());
+  } else {
+    static llvm::Regex Matcher("(^((W[Mm])|(wm))ain([_A-Z]|$))|([a-z0-9_]W[Mm]"
+                               "ain([_A-Z]|$))|(_wmain(_|$))");
+    assert(Matcher.isValid() && "Invalid Matcher for wmain like functions.");
+    return Matcher.match(FDecl->getName());
+  }
+}
+
 static std::string
 fixupWithStyle(StringRef Name,
                const IdentifierNamingCheck::NamingStyle &Style) {
@@ -338,7 +392,8 @@ fixupWithStyle(StringRef Name,
 static StyleKind findStyleKind(
     const NamedDecl *D,
     const std::vector<llvm::Optional<IdentifierNamingCheck::NamingStyle>>
-        &NamingStyles) {
+        &NamingStyles,
+    bool IgnoreMainLikeFunctions) {
   assert(D && D->getIdentifier() && !D->getName().empty() && !D->isImplicit() &&
          "Decl must be an explicit identifier with a name.");
 
@@ -434,6 +489,8 @@ static StyleKind findStyleKind(
   }
 
   if (const auto *Decl = dyn_cast<ParmVarDecl>(D)) {
+    if (isParamInMainLikeFunction(*Decl, IgnoreMainLikeFunctions))
+      return SK_Invalid;
     QualType Type = Decl->getType();
 
     if (Decl->isConstexpr() && NamingStyles[SK_ConstexprVariable])
@@ -615,7 +672,7 @@ static StyleKind findStyleKind(
 llvm::Optional<RenamerClangTidyCheck::FailureInfo>
 IdentifierNamingCheck::GetDeclFailureInfo(const NamedDecl *Decl,
                                           const SourceManager &SM) const {
-  StyleKind SK = findStyleKind(Decl, NamingStyles);
+  StyleKind SK = findStyleKind(Decl, NamingStyles, IgnoreMainLikeFunctions);
   if (SK == SK_Invalid)
     return None;
 

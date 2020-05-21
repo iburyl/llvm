@@ -155,13 +155,28 @@ public:
     case 16:
       CV.push_back(CapabilityInt16);
       break;
+    case 32:
+      break;
     case 64:
       CV.push_back(CapabilityInt64);
       break;
     default:
-      break;
+      if (Module->isAllowedToUseExtension(
+              ExtensionID::SPV_INTEL_arbitrary_precision_integers))
+        CV.push_back(CapabilityArbitraryPrecisionIntegersINTEL);
     }
     return CV;
+  }
+  SPIRVExtSet getRequiredExtensions() const override {
+    switch (BitWidth) {
+    case 8:
+    case 16:
+    case 32:
+    case 64:
+      return SPIRVExtSet();
+    default:
+      return getSet(ExtensionID::SPV_INTEL_arbitrary_precision_integers);
+    }
   }
 
 protected:
@@ -191,7 +206,7 @@ public:
     SPIRVCapVec CV;
     if (isTypeFloat(16)) {
       CV.push_back(CapabilityFloat16Buffer);
-      auto Extensions = getModule()->getExtension();
+      auto Extensions = getModule()->getSourceExtension();
       if (std::any_of(Extensions.begin(), Extensions.end(),
                       [](const std::string &I) { return I == "cl_khr_fp16"; }))
         CV.push_back(CapabilityFloat16);

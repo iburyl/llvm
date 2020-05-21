@@ -40,8 +40,11 @@
 #define SPIRV_OCLUTIL_H
 
 #include "SPIRVInternal.h"
+#include "llvm/ADT/SmallString.h"
+#include "llvm/ADT/SmallString.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/Support/Path.h"
 
 #include <functional>
@@ -312,7 +315,7 @@ const static char TypePrefix[] = "opencl.intel_sub_group_avc_";
 ///   not empty.
 /// \return instruction index of extended instruction if the OpenCL builtin
 ///   function is translated to an extended instruction, otherwise ~0U.
-unsigned getExtOp(StringRef MangledName, const std::string &DemangledName = "");
+unsigned getExtOp(StringRef MangledName, StringRef DemangledName = "");
 
 /// Get literal arguments of call of atomic_work_item_fence.
 AtomicWorkItemFenceLiterals getAtomicWorkItemFenceLiterals(CallInst *CI);
@@ -434,6 +437,12 @@ template <typename T> std::string toString(const T *Object) {
   RSOS.flush();
   return S;
 }
+
+// Get data and vector size postfix for sugroup_block_{read|write} builtins
+// as specified by cl_intel_subgroups* extensions.
+// Scalar data assumed to be represented as vector of one element.
+std::string getIntelSubgroupBlockDataPostfix(unsigned ElementBitSize,
+                                             unsigned VectorNumElements);
 } // namespace OCLUtil
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -952,6 +961,20 @@ template <> inline void SPIRVMap<std::string, Op, OCLOpaqueType>::init() {
   add("opencl.reserve_id_t", OpTypeReserveId);
   add("opencl.queue_t", OpTypeQueue);
   add("opencl.sampler_t", OpTypeSampler);
+}
+
+typedef SPIRVMap<AtomicRMWInst::BinOp, Op> LLVMSPIRVAtomicRmwOpCodeMap;
+template <> inline void LLVMSPIRVAtomicRmwOpCodeMap::init() {
+  add(llvm::AtomicRMWInst::Xchg, OpAtomicExchange);
+  add(llvm::AtomicRMWInst::Add, OpAtomicIAdd);
+  add(llvm::AtomicRMWInst::Sub, OpAtomicISub);
+  add(llvm::AtomicRMWInst::And, OpAtomicAnd);
+  add(llvm::AtomicRMWInst::Or, OpAtomicOr);
+  add(llvm::AtomicRMWInst::Xor, OpAtomicXor);
+  add(llvm::AtomicRMWInst::Max, OpAtomicSMax);
+  add(llvm::AtomicRMWInst::Min, OpAtomicSMin);
+  add(llvm::AtomicRMWInst::UMax, OpAtomicUMax);
+  add(llvm::AtomicRMWInst::UMin, OpAtomicUMin);
 }
 
 } // namespace SPIRV

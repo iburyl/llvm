@@ -1,5 +1,3 @@
-add_subdirectory(SYCLLowerIR)
-
 set(LLVM_LINK_COMPONENTS
   Analysis
   BitReader
@@ -7,6 +5,7 @@ set(LLVM_LINK_COMPONENTS
   Core
   Coroutines
   Coverage
+  Extensions
   FrontendOpenMP
   IPO
   IRReader
@@ -23,6 +22,7 @@ set(LLVM_LINK_COMPONENTS
   Remarks
   ScalarOpts
   Support
+  SYCLLowerIR
   Target
   TransformUtils
   )
@@ -99,8 +99,6 @@ add_clang_library(clangCodeGen
   TargetInfo.cpp
   VarBypassDetector.cpp
 
-  ENABLE_PLUGINS
-
   DEPENDS
   ${codegen_deps}
 
@@ -112,5 +110,4 @@ add_clang_library(clangCodeGen
   clangFrontend
   clangLex
   clangSerialization
-  clangSYCLLowerIR
   )

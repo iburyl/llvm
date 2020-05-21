@@ -1,4 +1,4 @@
-//===-- CommandObjectGUI.cpp ------------------------------------*- C++ -*-===//
+//===-- CommandObjectGUI.cpp ----------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -47,7 +47,7 @@ bool CommandObjectGUI::DoExecute(Args &args, CommandReturnObject &result) {
   }
   return true;
 #else
-  result.AppendError("lldb was not build with gui support");
+  result.AppendError("lldb was not built with gui support");
   return false;
 #endif
 }

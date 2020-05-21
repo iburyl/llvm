@@ -1,4 +1,4 @@
-//===-- Debugger.cpp --------------------------------------------*- C++ -*-===//
+//===-- Debugger.cpp ------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -135,84 +135,6 @@ static constexpr OptionEnumValueElement g_language_enumerators[] = {
     },
 };
 
-#define MODULE_WITH_FUNC                                                       \
-  "{ "                                                                         \
-  "${module.file.basename}{`${function.name-with-args}"                        \
-  "{${frame.no-debug}${function.pc-offset}}}}"
-
-#define MODULE_WITH_FUNC_NO_ARGS                                               \
-  "{ "                                                                         \
-  "${module.file.basename}{`${function.name-without-args}"                     \
-  "{${frame.no-debug}${function.pc-offset}}}}"
-
-#define FILE_AND_LINE                                                          \
-  "{ at ${ansi.fg.cyan}${line.file.basename}${ansi.normal}"                    \
-  ":${ansi.fg.yellow}${line.number}${ansi.normal}"                             \
-  "{:${ansi.fg.yellow}${line.column}${ansi.normal}}}"
-
-#define IS_OPTIMIZED "{${function.is-optimized} [opt]}"
-
-#define IS_ARTIFICIAL "{${frame.is-artificial} [artificial]}"
-
-#define DEFAULT_THREAD_FORMAT                                                  \
-  "thread #${thread.index}: tid = ${thread.id%tid}"                            \
-  "{, ${frame.pc}}" MODULE_WITH_FUNC FILE_AND_LINE                             \
-  "{, name = ${ansi.fg.green}'${thread.name}'${ansi.normal}}"                  \
-  "{, queue = ${ansi.fg.green}'${thread.queue}'${ansi.normal}}"                \
-  "{, activity = "                                                             \
-  "${ansi.fg.green}'${thread.info.activity.name}'${ansi.normal}}"              \
-  "{, ${thread.info.trace_messages} messages}"                                 \
-  "{, stop reason = ${ansi.fg.red}${thread.stop-reason}${ansi.normal}}"        \
-  "{\\nReturn value: ${thread.return-value}}"                                  \
-  "{\\nCompleted expression: ${thread.completed-expression}}"                  \
-  "\\n"
-
-#define DEFAULT_THREAD_STOP_FORMAT                                             \
-  "thread #${thread.index}{, name = '${thread.name}'}"                         \
-  "{, queue = ${ansi.fg.green}'${thread.queue}'${ansi.normal}}"                \
-  "{, activity = "                                                             \
-  "${ansi.fg.green}'${thread.info.activity.name}'${ansi.normal}}"              \
-  "{, ${thread.info.trace_messages} messages}"                                 \
-  "{, stop reason = ${ansi.fg.red}${thread.stop-reason}${ansi.normal}}"        \
-  "{\\nReturn value: ${thread.return-value}}"                                  \
-  "{\\nCompleted expression: ${thread.completed-expression}}"                  \
-  "\\n"
-
-#define DEFAULT_FRAME_FORMAT                                                   \
-  "frame #${frame.index}: "                                                    \
-  "${ansi.fg.yellow}${frame.pc}${ansi.normal}" MODULE_WITH_FUNC FILE_AND_LINE  \
-      IS_OPTIMIZED IS_ARTIFICIAL "\\n"
-
-#define DEFAULT_FRAME_FORMAT_NO_ARGS                                           \
-  "frame #${frame.index}: "                                                    \
-  "${ansi.fg.yellow}${frame.pc}${ansi.normal}" MODULE_WITH_FUNC_NO_ARGS        \
-      FILE_AND_LINE IS_OPTIMIZED IS_ARTIFICIAL "\\n"
-
-// Three parts to this disassembly format specification:
-//   1. If this is a new function/symbol (no previous symbol/function), print
-//      dylib`funcname:\n
-//   2. If this is a symbol context change (different from previous
-//   symbol/function), print
-//      dylib`funcname:\n
-//   3. print
-//      address <+offset>:
-#define DEFAULT_DISASSEMBLY_FORMAT                                             \
-  "{${function.initial-function}{${module.file.basename}`}{${function.name-"   \
-  "without-args}}:\\n}{${function.changed}\\n{${module.file.basename}`}{${"    \
-  "function.name-without-args}}:\\n}{${current-pc-arrow} "                     \
-  "}${addr-file-or-load}{ "                                                    \
-  "<${function.concrete-only-addr-offset-no-padding}>}: "
-
-// gdb's disassembly format can be emulated with ${current-pc-arrow}${addr-
-// file-or-load}{ <${function.name-without-args}${function.concrete-only-addr-
-// offset-no-padding}>}:
-
-// lldb's original format for disassembly would look like this format string -
-// {${function.initial-function}{${module.file.basename}`}{${function.name-
-// without-
-// args}}:\n}{${function.changed}\n{${module.file.basename}`}{${function.name-
-// without-args}}:\n}{${current-pc-arrow} }{${addr-file-or-load}}:
-
 static constexpr OptionEnumValueElement s_stop_show_column_values[] = {
     {
         eStopShowColumnAnsiOrCaret,
@@ -290,6 +212,11 @@ Status Debugger::SetPropertyValue(const ExecutionContext *exe_ctx,
       // use-color changed. Ping the prompt so it can reset the ansi terminal
       // codes.
       SetPrompt(GetPrompt());
+    } else if (property_path == g_debugger_properties[ePropertyUseSourceCache].name) {
+      // use-source-cache changed. Wipe out the cache contents if it was disabled.
+      if (!GetUseSourceCache()) {
+        m_source_file_cache.Clear();
+      }
     } else if (is_load_script && target_sp &&
                load_script_old_value == eLoadScriptFromSymFileWarn) {
       if (target_sp->TargetProperties::GetLoadScriptFromSymbolFile() ==
@@ -388,6 +315,9 @@ uint32_t Debugger::GetTerminalWidth() const {
 }
 
 bool Debugger::SetTerminalWidth(uint32_t term_width) {
+  if (auto handler_sp = m_io_handler_stack.Top())
+    handler_sp->TerminalSizeChanged();
+
   const uint32_t idx = ePropertyTerminalWidth;
   return m_collection_sp->SetPropertyAtIndexAsSInt64(nullptr, idx, term_width);
 }
@@ -416,6 +346,20 @@ bool Debugger::SetUseColor(bool b) {
   return ret;
 }
 
+bool Debugger::GetUseSourceCache() const {
+  const uint32_t idx = ePropertyUseSourceCache;
+  return m_collection_sp->GetPropertyAtIndexAsBoolean(
+      nullptr, idx, g_debugger_properties[idx].default_uint_value != 0);
+}
+
+bool Debugger::SetUseSourceCache(bool b) {
+  const uint32_t idx = ePropertyUseSourceCache;
+  bool ret = m_collection_sp->SetPropertyAtIndexAsBoolean(nullptr, idx, b);
+  if (!ret) {
+    m_source_file_cache.Clear();
+  }
+  return ret;
+}
 bool Debugger::GetHighlightSource() const {
   const uint32_t idx = ePropertyHighlightSource;
   return m_collection_sp->GetPropertyAtIndexAsBoolean(
@@ -435,6 +379,16 @@ llvm::StringRef Debugger::GetStopShowColumnAnsiPrefix() const {
 
 llvm::StringRef Debugger::GetStopShowColumnAnsiSuffix() const {
   const uint32_t idx = ePropertyStopShowColumnAnsiSuffix;
+  return m_collection_sp->GetPropertyAtIndexAsString(nullptr, idx, "");
+}
+
+llvm::StringRef Debugger::GetStopShowLineMarkerAnsiPrefix() const {
+  const uint32_t idx = ePropertyStopShowLineMarkerAnsiPrefix;
+  return m_collection_sp->GetPropertyAtIndexAsString(nullptr, idx, "");
+}
+
+llvm::StringRef Debugger::GetStopShowLineMarkerAnsiSuffix() const {
+  const uint32_t idx = ePropertyStopShowLineMarkerAnsiSuffix;
   return m_collection_sp->GetPropertyAtIndexAsString(nullptr, idx, "");
 }
 
@@ -895,23 +849,62 @@ void Debugger::ClearIOHandlers() {
 }
 
 void Debugger::RunIOHandlers() {
+  IOHandlerSP reader_sp = m_io_handler_stack.Top();
   while (true) {
-    IOHandlerSP reader_sp(m_io_handler_stack.Top());
     if (!reader_sp)
       break;
 
     reader_sp->Run();
+    {
+      std::lock_guard<std::recursive_mutex> guard(
+          m_io_handler_synchronous_mutex);
 
-    // Remove all input readers that are done from the top of the stack
-    while (true) {
-      IOHandlerSP top_reader_sp = m_io_handler_stack.Top();
-      if (top_reader_sp && top_reader_sp->GetIsDone())
-        PopIOHandler(top_reader_sp);
-      else
-        break;
+      // Remove all input readers that are done from the top of the stack
+      while (true) {
+        IOHandlerSP top_reader_sp = m_io_handler_stack.Top();
+        if (top_reader_sp && top_reader_sp->GetIsDone())
+          PopIOHandler(top_reader_sp);
+        else
+          break;
+      }
+      reader_sp = m_io_handler_stack.Top();
     }
   }
   ClearIOHandlers();
+}
+
+void Debugger::RunIOHandlerSync(const IOHandlerSP &reader_sp) {
+  std::lock_guard<std::recursive_mutex> guard(m_io_handler_synchronous_mutex);
+
+  PushIOHandler(reader_sp);
+  IOHandlerSP top_reader_sp = reader_sp;
+
+  while (top_reader_sp) {
+    if (!top_reader_sp)
+      break;
+
+    top_reader_sp->Run();
+
+    // Don't unwind past the starting point.
+    if (top_reader_sp.get() == reader_sp.get()) {
+      if (PopIOHandler(reader_sp))
+        break;
+    }
+
+    // If we pushed new IO handlers, pop them if they're done or restart the
+    // loop to run them if they're not.
+    while (true) {
+      top_reader_sp = m_io_handler_stack.Top();
+      if (top_reader_sp && top_reader_sp->GetIsDone()) {
+        PopIOHandler(top_reader_sp);
+        // Don't unwind past the starting point.
+        if (top_reader_sp.get() == reader_sp.get())
+          return;
+      } else {
+        break;
+      }
+    }
+  }
 }
 
 bool Debugger::IsTopIOHandler(const lldb::IOHandlerSP &reader_sp) {
@@ -948,28 +941,6 @@ bool Debugger::RemoveIOHandler(const IOHandlerSP &reader_sp) {
 void Debugger::RunIOHandlerAsync(const IOHandlerSP &reader_sp,
                                  bool cancel_top_handler) {
   PushIOHandler(reader_sp, cancel_top_handler);
-}
-
-void Debugger::RunIOHandlerSync(const IOHandlerSP &reader_sp) {
-  PushIOHandler(reader_sp);
-
-  IOHandlerSP top_reader_sp = reader_sp;
-  while (top_reader_sp) {
-    top_reader_sp->Run();
-
-    if (top_reader_sp.get() == reader_sp.get()) {
-      if (PopIOHandler(reader_sp))
-        break;
-    }
-
-    while (true) {
-      top_reader_sp = m_io_handler_stack.Top();
-      if (top_reader_sp && top_reader_sp->GetIsDone())
-        PopIOHandler(top_reader_sp);
-      else
-        break;
-    }
-  }
 }
 
 void Debugger::AdoptTopIOHandlerFilesIfInvalid(FileSP &in, StreamFileSP &out,
@@ -1512,9 +1483,9 @@ bool Debugger::StartEventHandlerThread() {
     listener_sp->StartListeningForEvents(&m_sync_broadcaster,
                                          eBroadcastBitEventThreadIsListening);
 
-    auto thread_name =
+    llvm::StringRef thread_name =
         full_name.GetLength() < llvm::get_max_thread_name_length()
-            ? full_name.AsCString()
+            ? full_name.GetStringRef()
             : "dbg.evt-handler";
 
     // Use larger 8MB stack for this thread

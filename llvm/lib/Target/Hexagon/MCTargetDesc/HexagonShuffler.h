@@ -47,6 +47,9 @@ public:
     setWeight(s);
   }
 
+  void setAllUnits() {
+    setUnits(((1u << HEXAGON_PACKET_SIZE) - 1));
+  }
   unsigned setWeight(unsigned s);
 
   unsigned getUnits() const { return (Slots); }
@@ -178,12 +181,13 @@ protected:
   void restrictSlot1AOK(HexagonPacketSummary const &Summary);
   void restrictNoSlot1Store(HexagonPacketSummary const &Summary);
   void restrictNoSlot1();
-
-  Optional<HexagonPacket> tryAuction(HexagonPacketSummary const &Summary) const;
-
   bool restrictStoreLoadOrder(HexagonPacketSummary const &Summary);
   void restrictBranchOrder(HexagonPacketSummary const &Summary);
   void restrictPreferSlot3(HexagonPacketSummary const &Summary);
+  void permitNonSlot();
+
+  Optional<HexagonPacket> tryAuction(HexagonPacketSummary const &Summary) const;
+
   HexagonPacketSummary GetPacketSummary();
   bool ValidPacketMemoryOps(HexagonPacketSummary const &Summary) const;
   bool ValidResourceUsage(HexagonPacketSummary const &Summary);
@@ -227,11 +231,10 @@ public:
   using InstPredicate = bool (*)(MCInstrInfo const &, MCInst const &);
 
   bool HasInstWith(InstPredicate Pred) const {
-    return llvm::any_of(make_range(cbegin(), cend()),
-                        [&](HexagonInstr const &I) {
-                          MCInst const &Inst = I.getDesc();
-                          return (*Pred)(MCII, Inst);
-                        });
+    return llvm::any_of(insts(), [&](HexagonInstr const &I) {
+      MCInst const &Inst = I.getDesc();
+      return (*Pred)(MCII, Inst);
+    });
   }
 
   // Add insn handle to the bundle .

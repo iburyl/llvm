@@ -48,7 +48,6 @@
 #include "llvm/IR/InstVisitor.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/Pass.h"
-#include "llvm/PassSupport.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 
@@ -212,6 +211,11 @@ void PreprocessMetadata::visit(Module *M) {
           .add(Y)
           .add(Z)
           .done();
+    }
+
+    // !{void (i32 addrspace(1)*)* @kernel, i32 no_global_work_offset}
+    if (Kernel.getMetadata(kSPIR2MD::NoGlobalOffset)) {
+      EM.addOp().add(&Kernel).add(spv::ExecutionModeNoGlobalOffsetINTEL).done();
     }
 
     // !{void (i32 addrspace(1)*)* @kernel, i32 max_global_work_dim, i32 dim}

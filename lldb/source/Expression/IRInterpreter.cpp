@@ -1,4 +1,4 @@
-//===-- IRInterpreter.cpp ---------------------------------------*- C++ -*-===//
+//===-- IRInterpreter.cpp -------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -144,7 +144,7 @@ public:
       ss.Printf(" 0x%llx", (unsigned long long)addr);
     }
 
-    return ss.GetString();
+    return std::string(ss.GetString());
   }
 
   bool AssignToMatchType(lldb_private::Scalar &scalar, uint64_t u64value,
@@ -403,7 +403,7 @@ public:
         ss.Printf("%02hhx ", buf.GetBytes()[i]);
     }
 
-    return ss.GetString();
+    return std::string(ss.GetString());
   }
 
   lldb::addr_t ResolveValue(const Value *value, Module &module) {
@@ -597,7 +597,8 @@ bool IRInterpreter::CanInterpret(llvm::Module &module, llvm::Function &function,
         switch (operand_type->getTypeID()) {
         default:
           break;
-        case Type::VectorTyID: {
+        case Type::FixedVectorTyID:
+        case Type::ScalableVectorTyID: {
           LLDB_LOGF(log, "Unsupported operand type: %s",
                     PrintType(operand_type).c_str());
           error.SetErrorString(unsupported_operand_error);
@@ -1370,7 +1371,7 @@ bool IRInterpreter::Interpret(llvm::Module &module, llvm::Function &function,
 
       // Find the address of the callee function
       lldb_private::Scalar I;
-      const llvm::Value *val = call_inst->getCalledValue();
+      const llvm::Value *val = call_inst->getCalledOperand();
 
       if (!frame.EvaluateValue(I, val, module)) {
         error.SetErrorToGenericError();
@@ -1510,7 +1511,7 @@ bool IRInterpreter::Interpret(llvm::Module &module, llvm::Function &function,
         lldb_private::ValueObject *vobj = retVal.get();
 
         // Check if the return value is valid
-        if (vobj == nullptr || retVal.empty()) {
+        if (vobj == nullptr || !retVal) {
           error.SetErrorToGenericError();
           error.SetErrorStringWithFormat("unable to get the return value");
           return false;

@@ -1,4 +1,8 @@
-// RUN: %clangxx -fsycl %s -o %t.out
+// REQUIRES: opencl
+// TODO rewrite as unit test
+// XFAIL: *
+
+// RUN: %clangxx -fsycl -I %sycl_source_dir %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 //==---------------- cache.cpp - SYCL kernel/program test ------------------==//
 //
@@ -9,6 +13,8 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl.hpp>
+// FIXME do not use internal methods in tests.
+#include <detail/program_impl.hpp>
 
 namespace RT = cl::sycl::RT;
 namespace detail = cl::sycl::detail;

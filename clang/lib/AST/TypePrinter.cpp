@@ -227,6 +227,8 @@ bool TypePrinter::canPrefixQualifiers(const Type *T,
     case Type::ObjCInterface:
     case Type::Atomic:
     case Type::Pipe:
+    case Type::ExtInt:
+    case Type::DependentExtInt:
       CanPrefixQualifiers = true;
       break;
 
@@ -254,6 +256,8 @@ bool TypePrinter::canPrefixQualifiers(const Type *T,
     case Type::DependentSizedExtVector:
     case Type::Vector:
     case Type::ExtVector:
+    case Type::ConstantMatrix:
+    case Type::DependentSizedMatrix:
     case Type::FunctionProto:
     case Type::FunctionNoProto:
     case Type::Paren:
@@ -726,6 +730,38 @@ void TypePrinter::printExtVectorAfter(const ExtVectorType *T, raw_ostream &OS) {
   OS << ")))";
 }
 
+void TypePrinter::printConstantMatrixBefore(const ConstantMatrixType *T,
+                                            raw_ostream &OS) {
+  printBefore(T->getElementType(), OS);
+  OS << " __attribute__((matrix_type(";
+  OS << T->getNumRows() << ", " << T->getNumColumns();
+  OS << ")))";
+}
+
+void TypePrinter::printConstantMatrixAfter(const ConstantMatrixType *T,
+                                           raw_ostream &OS) {
+  printAfter(T->getElementType(), OS);
+}
+
+void TypePrinter::printDependentSizedMatrixBefore(
+    const DependentSizedMatrixType *T, raw_ostream &OS) {
+  printBefore(T->getElementType(), OS);
+  OS << " __attribute__((matrix_type(";
+  if (T->getRowExpr()) {
+    T->getRowExpr()->printPretty(OS, nullptr, Policy);
+  }
+  OS << ", ";
+  if (T->getColumnExpr()) {
+    T->getColumnExpr()->printPretty(OS, nullptr, Policy);
+  }
+  OS << ")))";
+}
+
+void TypePrinter::printDependentSizedMatrixAfter(
+    const DependentSizedMatrixType *T, raw_ostream &OS) {
+  printAfter(T->getElementType(), OS);
+}
+
 void
 FunctionProtoType::printExceptionSpecification(raw_ostream &OS,
                                                const PrintingPolicy &Policy)
@@ -917,6 +953,8 @@ void TypePrinter::printFunctionAfter(const FunctionType::ExtInfo &Info,
 
   if (Info.getNoReturn())
     OS << " __attribute__((noreturn))";
+  if (Info.getCmseNSCall())
+    OS << " __attribute__((cmse_nonsecure_call))";
   if (Info.getProducesResult())
     OS << " __attribute__((ns_returns_retained))";
   if (Info.getRegParm())
@@ -1053,6 +1091,13 @@ void TypePrinter::printAutoBefore(const AutoType *T, raw_ostream &OS) {
   if (!T->getDeducedType().isNull()) {
     printBefore(T->getDeducedType(), OS);
   } else {
+    if (T->isConstrained()) {
+      OS << T->getTypeConstraintConcept()->getName();
+      auto Args = T->getTypeConstraintArguments();
+      if (!Args.empty())
+        printTemplateArgumentList(OS, Args, Policy);
+      OS << ' ';
+    }
     switch (T->getKeyword()) {
     case AutoTypeKeyword::Auto: OS << "auto"; break;
     case AutoTypeKeyword::DecltypeAuto: OS << "decltype(auto)"; break;
@@ -1111,6 +1156,28 @@ void TypePrinter::printPipeBefore(const PipeType *T, raw_ostream &OS) {
 }
 
 void TypePrinter::printPipeAfter(const PipeType *T, raw_ostream &OS) {}
+
+void TypePrinter::printExtIntBefore(const ExtIntType *T, raw_ostream &OS) {
+  if (T->isUnsigned())
+    OS << "unsigned ";
+  OS << "_ExtInt(" << T->getNumBits() << ")";
+  spaceBeforePlaceHolder(OS);
+}
+
+void TypePrinter::printExtIntAfter(const ExtIntType *T, raw_ostream &OS) {}
+
+void TypePrinter::printDependentExtIntBefore(const DependentExtIntType *T,
+                                             raw_ostream &OS) {
+  if (T->isUnsigned())
+    OS << "unsigned ";
+  OS << "_ExtInt(";
+  T->getNumBitsExpr()->printPretty(OS, nullptr, Policy);
+  OS << ")";
+  spaceBeforePlaceHolder(OS);
+}
+
+void TypePrinter::printDependentExtIntAfter(const DependentExtIntType *T,
+                                            raw_ostream &OS) {}
 
 /// Appends the given scope to the end of a string.
 void TypePrinter::AppendScope(DeclContext *DC, raw_ostream &OS) {
@@ -1241,20 +1308,18 @@ void TypePrinter::printEnumAfter(const EnumType *T, raw_ostream &OS) {}
 
 void TypePrinter::printTemplateTypeParmBefore(const TemplateTypeParmType *T,
                                               raw_ostream &OS) {
-  if (IdentifierInfo *Id = T->getIdentifier())
-    OS << Id->getName();
-  else {
-    bool IsLambdaAutoParam = false;
-    if (auto D = T->getDecl()) {
-      if (auto M = dyn_cast_or_null<CXXMethodDecl>(D->getDeclContext()))
-        IsLambdaAutoParam = D->isImplicit() && M->getParent()->isLambda();
+  TemplateTypeParmDecl *D = T->getDecl();
+  if (D && D->isImplicit()) {
+    if (auto *TC = D->getTypeConstraint()) {
+      TC->print(OS, Policy);
+      OS << ' ';
     }
+    OS << "auto";
+  } else if (IdentifierInfo *Id = T->getIdentifier())
+    OS << Id->getName();
+  else
+    OS << "type-parameter-" << T->getDepth() << '-' << T->getIndex();
 
-    if (IsLambdaAutoParam)
-      OS << "auto";
-    else
-      OS << "type-parameter-" << T->getDepth() << '-' << T->getIndex();
-  }
   spaceBeforePlaceHolder(OS);
 }
 
@@ -1305,7 +1370,12 @@ void TypePrinter::printTemplateSpecializationAfter(
 
 void TypePrinter::printInjectedClassNameBefore(const InjectedClassNameType *T,
                                                raw_ostream &OS) {
-  printTemplateSpecializationBefore(T->getInjectedTST(), OS);
+  if (Policy.PrintInjectedClassNameWithArguments)
+    return printTemplateSpecializationBefore(T->getInjectedTST(), OS);
+
+  IncludeStrongLifetimeRAII Strong(Policy);
+  T->getTemplateName().print(OS, Policy);
+  spaceBeforePlaceHolder(OS);
 }
 
 void TypePrinter::printInjectedClassNameAfter(const InjectedClassNameType *T,
@@ -1394,7 +1464,7 @@ void TypePrinter::printDependentTemplateSpecializationBefore(
 
   if (T->getQualifier())
     T->getQualifier()->print(OS, Policy);
-  OS << T->getIdentifier()->getName();
+  OS << "template " << T->getIdentifier()->getName();
   printTemplateArgumentList(OS, T->template_arguments(), Policy);
   spaceBeforePlaceHolder(OS);
 }
@@ -1531,6 +1601,7 @@ void TypePrinter::printAttributedAfter(const AttributedType *T,
   case attr::SPtr:
   case attr::UPtr:
   case attr::AddressSpace:
+  case attr::CmseNSCall:
     llvm_unreachable("This attribute should have been handled already");
 
   case attr::NSReturnsRetained:
@@ -1731,13 +1802,13 @@ static void printTo(raw_ostream &OS, ArrayRef<TA> Args,
 
     OS << ArgString;
 
-    NeedSpace = (!ArgString.empty() && ArgString.back() == '>');
+    // If the last character of our string is '>', add another space to
+    // keep the two '>''s separate tokens.
+    NeedSpace = Policy.SplitTemplateClosers && !ArgString.empty() &&
+                ArgString.back() == '>';
     FirstArg = false;
   }
 
-  // If the last character of our string is '>', add another space to
-  // keep the two '>''s separate tokens. We don't *have* to do this in
-  // C++0x, but it's still good hygiene.
   if (NeedSpace)
     OS << ' ';
 
@@ -1775,7 +1846,7 @@ std::string Qualifiers::getAsString(const PrintingPolicy &Policy) const {
   SmallString<64> Buf;
   llvm::raw_svector_ostream StrOS(Buf);
   print(StrOS, Policy);
-  return StrOS.str();
+  return std::string(StrOS.str());
 }
 
 bool Qualifiers::isEmptyWhenPrinted(const PrintingPolicy &Policy) const {
@@ -1800,16 +1871,12 @@ std::string Qualifiers::getAddrSpaceAsString(LangAS AS) {
   case LangAS::Default:
     return "";
   case LangAS::opencl_global:
-  case LangAS::sycl_global:
     return "__global";
   case LangAS::opencl_local:
-  case LangAS::sycl_local:
     return "__local";
   case LangAS::opencl_private:
-  case LangAS::sycl_private:
     return "__private";
   case LangAS::opencl_constant:
-  case LangAS::sycl_constant:
     return "__constant";
   case LangAS::opencl_generic:
     return "__generic";
@@ -1937,6 +2004,6 @@ void QualType::getAsStringInternal(const Type *ty, Qualifiers qs,
   SmallString<256> Buf;
   llvm::raw_svector_ostream StrOS(Buf);
   TypePrinter(policy).print(ty, qs, StrOS, buffer);
-  std::string str = StrOS.str();
+  std::string str = std::string(StrOS.str());
   buffer.swap(str);
 }

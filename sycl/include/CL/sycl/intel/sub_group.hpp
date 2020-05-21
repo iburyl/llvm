@@ -11,21 +11,22 @@
 #include <CL/__spirv/spirv_ops.hpp>
 #include <CL/__spirv/spirv_vars.hpp>
 #include <CL/sycl/access/access.hpp>
+#include <CL/sycl/detail/defines.hpp>
 #include <CL/sycl/detail/generic_type_traits.hpp>
 #include <CL/sycl/detail/helpers.hpp>
+#include <CL/sycl/detail/spirv.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/id.hpp>
 #include <CL/sycl/intel/functional.hpp>
 #include <CL/sycl/range.hpp>
 #include <CL/sycl/types.hpp>
 
-#include <cstring> // std::memcpy
 #include <numeric> // std::bit_cast
 #include <type_traits>
 
 #ifdef __SYCL_DEVICE_ONLY__
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 template <typename T, access::address_space Space> class multi_ptr;
 
@@ -33,15 +34,9 @@ namespace detail {
 
 namespace sub_group {
 
-template <typename T> T broadcast(T x, id<1> local_id) {
-  using OCLT = detail::ConvertToOpenCLType_t<T>;
-  return __spirv_GroupBroadcast(__spv::Scope::Subgroup, OCLT(x),
-                                local_id.get(0));
-}
-
 #define __SYCL_SG_GENERATE_BODY_1ARG(name, SPIRVOperation)                     \
   template <typename T> T name(T x, id<1> local_id) {                          \
-    using OCLT = detail::ConvertToOpenCLType_t<T>;                             \
+    using OCLT = sycl::detail::ConvertToOpenCLType_t<T>;                       \
     return __spirv_##SPIRVOperation(OCLT(x), local_id.get(0));                 \
   }
 
@@ -52,7 +47,7 @@ __SYCL_SG_GENERATE_BODY_1ARG(shuffle_xor, SubgroupShuffleXorINTEL)
 
 #define __SYCL_SG_GENERATE_BODY_2ARG(name, SPIRVOperation)                     \
   template <typename T> T name(T A, T B, uint32_t Delta) {                     \
-    using OCLT = detail::ConvertToOpenCLType_t<T>;                             \
+    using OCLT = sycl::detail::ConvertToOpenCLType_t<T>;                       \
     return __spirv_##SPIRVOperation(OCLT(A), OCLT(B), Delta);                  \
   }
 
@@ -78,15 +73,11 @@ template <typename To, typename From> To bit_cast(const From &from) {
   return std::bit_cast<To>(from);
 #else
 
-#ifndef __has_builtin
-#define __has_builtin(x) 0
-#endif // __has_builtin
-
 #if __has_builtin(__builtin_bit_cast)
   return __builtin_bit_cast(To, from);
 #else
   To to;
-  std::memcpy(&to, &from, sizeof(To));
+  sycl::detail::memcpy(&to, &from, sizeof(To));
   return to;
 #endif // __has_builtin(__builtin_bit_cast)
 #endif // __cpp_lib_bit_cast
@@ -95,7 +86,8 @@ template <typename To, typename From> To bit_cast(const From &from) {
 template <typename T, access::address_space Space>
 T load(const multi_ptr<T, Space> src) {
   using BlockT = SelectBlockT<T>;
-  using PtrT = detail::ConvertToOpenCLType_t<const multi_ptr<BlockT, Space>>;
+  using PtrT =
+      sycl::detail::ConvertToOpenCLType_t<const multi_ptr<BlockT, Space>>;
 
   BlockT Ret =
       __spirv_SubgroupBlockReadINTEL<BlockT>(reinterpret_cast<PtrT>(src.get()));
@@ -106,8 +98,9 @@ T load(const multi_ptr<T, Space> src) {
 template <int N, typename T, access::address_space Space>
 vec<T, N> load(const multi_ptr<T, Space> src) {
   using BlockT = SelectBlockT<T>;
-  using VecT = detail::ConvertToOpenCLType_t<vec<BlockT, N>>;
-  using PtrT = detail::ConvertToOpenCLType_t<const multi_ptr<BlockT, Space>>;
+  using VecT = sycl::detail::ConvertToOpenCLType_t<vec<BlockT, N>>;
+  using PtrT =
+      sycl::detail::ConvertToOpenCLType_t<const multi_ptr<BlockT, Space>>;
 
   VecT Ret =
       __spirv_SubgroupBlockReadINTEL<VecT>(reinterpret_cast<PtrT>(src.get()));
@@ -118,7 +111,7 @@ vec<T, N> load(const multi_ptr<T, Space> src) {
 template <typename T, access::address_space Space>
 void store(multi_ptr<T, Space> dst, const T &x) {
   using BlockT = SelectBlockT<T>;
-  using PtrT = detail::ConvertToOpenCLType_t<multi_ptr<BlockT, Space>>;
+  using PtrT = sycl::detail::ConvertToOpenCLType_t<multi_ptr<BlockT, Space>>;
 
   __spirv_SubgroupBlockWriteINTEL(reinterpret_cast<PtrT>(dst.get()),
                                   bit_cast<BlockT>(x));
@@ -127,57 +120,12 @@ void store(multi_ptr<T, Space> dst, const T &x) {
 template <int N, typename T, access::address_space Space>
 void store(multi_ptr<T, Space> dst, const vec<T, N> &x) {
   using BlockT = SelectBlockT<T>;
-  using VecT = detail::ConvertToOpenCLType_t<vec<BlockT, N>>;
-  using PtrT = detail::ConvertToOpenCLType_t<const multi_ptr<BlockT, Space>>;
+  using VecT = sycl::detail::ConvertToOpenCLType_t<vec<BlockT, N>>;
+  using PtrT =
+      sycl::detail::ConvertToOpenCLType_t<const multi_ptr<BlockT, Space>>;
 
   __spirv_SubgroupBlockWriteINTEL(reinterpret_cast<PtrT>(dst.get()),
                                   bit_cast<VecT>(x));
-}
-
-struct GroupOpISigned {}; struct GroupOpIUnsigned {}; struct GroupOpFP {};
-
-template <typename T, typename = void> struct GroupOpTag;
-
-template <typename T>
-struct GroupOpTag<T, detail::enable_if_t<detail::is_sigeninteger<T>::value>> {
-  using type = GroupOpISigned;
-};
-
-template <typename T>
-struct GroupOpTag<T, detail::enable_if_t<detail::is_sugeninteger<T>::value>> {
-  using type = GroupOpIUnsigned;
-};
-
-template <typename T>
-struct GroupOpTag<T, detail::enable_if_t<detail::is_sgenfloat<T>::value>> {
-  using type = GroupOpFP;
-};
-
-#define __SYCL_SG_CALC_OVERLOAD(GroupTag, SPIRVOperation, BinaryOperation)     \
-  template <typename T, __spv::GroupOperation O>                               \
-  static T calc(GroupTag, T x, BinaryOperation op) {                           \
-    using OCLT = detail::ConvertToOpenCLType_t<T>;                             \
-    OCLT Arg = x;                                                              \
-    OCLT Ret = __spirv_Group##SPIRVOperation(__spv::Scope::Subgroup, O, Arg);  \
-    return Ret;                                                                \
-  }
-
-__SYCL_SG_CALC_OVERLOAD(GroupOpISigned, SMin, intel::minimum<T>)
-__SYCL_SG_CALC_OVERLOAD(GroupOpIUnsigned, UMin, intel::minimum<T>)
-__SYCL_SG_CALC_OVERLOAD(GroupOpFP, FMin, intel::minimum<T>)
-__SYCL_SG_CALC_OVERLOAD(GroupOpISigned, SMax, intel::maximum<T>)
-__SYCL_SG_CALC_OVERLOAD(GroupOpIUnsigned, UMax, intel::maximum<T>)
-__SYCL_SG_CALC_OVERLOAD(GroupOpFP, FMax, intel::maximum<T>)
-__SYCL_SG_CALC_OVERLOAD(GroupOpISigned, IAdd<T>, intel::plus<T>)
-__SYCL_SG_CALC_OVERLOAD(GroupOpIUnsigned, IAdd<T>, intel::plus<T>)
-__SYCL_SG_CALC_OVERLOAD(GroupOpFP, FAdd<T>, intel::plus<T>)
-
-#undef __SYCL_SG_CALC_OVERLOAD
-
-template <typename T, __spv::GroupOperation O,
-          template <typename> class BinaryOperation>
-static T calc(typename GroupOpTag<T>::type, T x, BinaryOperation<void>) {
-  return calc<T, O>(typename GroupOpTag<T>::type(), x, BinaryOperation<T>());
 }
 
 } // namespace sub_group
@@ -187,6 +135,12 @@ static T calc(typename GroupOpTag<T>::type, T x, BinaryOperation<void>) {
 namespace intel {
 
 struct sub_group {
+
+  using id_type = id<1>;
+  using range_type = range<1>;
+  using linear_id_type = size_t;
+  static constexpr int dimensions = 1;
+
   /* --- common interface members --- */
 
   id<1> get_local_id() const {
@@ -208,43 +162,53 @@ struct sub_group {
 
   /* --- vote / ballot functions --- */
 
+  __SYCL_EXPORT_DEPRECATED("Use sycl::intel::any_of instead.")
   bool any(bool predicate) const {
     return __spirv_GroupAny(__spv::Scope::Subgroup, predicate);
   }
 
+  __SYCL_EXPORT_DEPRECATED("Use sycl::intel::all_of instead.")
   bool all(bool predicate) const {
     return __spirv_GroupAll(__spv::Scope::Subgroup, predicate);
   }
 
   template <typename T>
-  using EnableIfIsScalarArithmetic = detail::enable_if_t<
-    !detail::is_vec<T>::value && detail::is_arithmetic<T>::value, T>;
+  using EnableIfIsScalarArithmetic =
+      sycl::detail::enable_if_t<sycl::detail::is_scalar_arithmetic<T>::value,
+                                T>;
 
   /* --- collectives --- */
 
   template <typename T>
+  __SYCL_EXPORT_DEPRECATED("Use sycl::intel::broadcast instead.")
   EnableIfIsScalarArithmetic<T> broadcast(T x, id<1> local_id) const {
-    return detail::sub_group::broadcast(x, local_id);
+    return sycl::detail::spirv::GroupBroadcast<sub_group>(x, local_id);
   }
 
   template <typename T, class BinaryOperation>
+  __SYCL_EXPORT_DEPRECATED("Use sycl::intel::reduce instead.")
   EnableIfIsScalarArithmetic<T> reduce(T x, BinaryOperation op) const {
-    return detail::sub_group::calc<T, __spv::GroupOperation::Reduce>(
-        typename detail::sub_group::GroupOpTag<T>::type(), x, op);
+    return sycl::detail::calc<T, __spv::GroupOperation::Reduce,
+                              __spv::Scope::Subgroup>(
+        typename sycl::detail::GroupOpTag<T>::type(), x, op);
   }
 
   template <typename T, class BinaryOperation>
+  __SYCL_EXPORT_DEPRECATED("Use sycl::intel::reduce instead.")
   EnableIfIsScalarArithmetic<T> reduce(T x, T init, BinaryOperation op) const {
     return op(init, reduce(x, op));
   }
 
   template <typename T, class BinaryOperation>
+  __SYCL_EXPORT_DEPRECATED("Use sycl::intel::exclusive_scan instead.")
   EnableIfIsScalarArithmetic<T> exclusive_scan(T x, BinaryOperation op) const {
-    return detail::sub_group::calc<T, __spv::GroupOperation::ExclusiveScan>(
-        typename detail::sub_group::GroupOpTag<T>::type(), x, op);
+    return sycl::detail::calc<T, __spv::GroupOperation::ExclusiveScan,
+                              __spv::Scope::Subgroup>(
+        typename sycl::detail::GroupOpTag<T>::type(), x, op);
   }
 
   template <typename T, class BinaryOperation>
+  __SYCL_EXPORT_DEPRECATED("Use sycl::intel::exclusive_scan instead.")
   EnableIfIsScalarArithmetic<T> exclusive_scan(T x, T init,
                                                BinaryOperation op) const {
     if (get_local_id().get(0) == 0) {
@@ -258,14 +222,17 @@ struct sub_group {
   }
 
   template <typename T, class BinaryOperation>
+  __SYCL_EXPORT_DEPRECATED("Use sycl::intel::inclusive_scan instead.")
   EnableIfIsScalarArithmetic<T> inclusive_scan(T x, BinaryOperation op) const {
-    return detail::sub_group::calc<T, __spv::GroupOperation::InclusiveScan>(
-        typename detail::sub_group::GroupOpTag<T>::type(), x, op);
+    return sycl::detail::calc<T, __spv::GroupOperation::InclusiveScan,
+                              __spv::Scope::Subgroup>(
+        typename sycl::detail::GroupOpTag<T>::type(), x, op);
   }
 
   template <typename T, class BinaryOperation>
+  __SYCL_EXPORT_DEPRECATED("Use sycl::intel::inclusive_scan instead.")
   EnableIfIsScalarArithmetic<T> inclusive_scan(T x, BinaryOperation op,
-                                         T init) const {
+                                               T init) const {
     if (get_local_id().get(0) == 0) {
       x = op(init, x);
     }
@@ -275,95 +242,95 @@ struct sub_group {
   /* --- one-input shuffles --- */
   /* indices in [0 , sub_group size) */
 
-  template <typename T>
-  T shuffle(T x, id<1> local_id) const {
-    return detail::sub_group::shuffle(x, local_id);
+  template <typename T> T shuffle(T x, id<1> local_id) const {
+    return sycl::detail::sub_group::shuffle(x, local_id);
   }
 
   template <typename T> T shuffle_down(T x, uint32_t delta) const {
-    return detail::sub_group::shuffle_down(x, x, delta);
+    return sycl::detail::sub_group::shuffle_down(x, x, delta);
   }
 
-  template <typename T>
-  T shuffle_up(T x, uint32_t delta) const {
-    return detail::sub_group::shuffle_up(x, x, delta);
+  template <typename T> T shuffle_up(T x, uint32_t delta) const {
+    return sycl::detail::sub_group::shuffle_up(x, x, delta);
   }
 
-  template <typename T>
-  T shuffle_xor(T x, id<1> value) const {
-    return detail::sub_group::shuffle_xor(x, value);
+  template <typename T> T shuffle_xor(T x, id<1> value) const {
+    return sycl::detail::sub_group::shuffle_xor(x, value);
   }
 
   /* --- two-input shuffles --- */
   /* indices in [0 , 2 * sub_group size) */
 
-  template <typename T>
-  T shuffle(T x, T y, id<1> local_id) const {
-    return detail::sub_group::shuffle_down(x, y,
-                                           (local_id - get_local_id()).get(0));
+  template <typename T> T shuffle(T x, T y, id<1> local_id) const {
+    return sycl::detail::sub_group::shuffle_down(
+        x, y, (local_id - get_local_id()).get(0));
   }
 
   template <typename T>
   T shuffle_down(T current, T next, uint32_t delta) const {
-    return detail::sub_group::shuffle_down(current, next, delta);
+    return sycl::detail::sub_group::shuffle_down(current, next, delta);
   }
 
   template <typename T>
   T shuffle_up(T previous, T current, uint32_t delta) const {
-    return detail::sub_group::shuffle_up(previous, current, delta);
+    return sycl::detail::sub_group::shuffle_up(previous, current, delta);
   }
 
   /* --- sub_group load/stores --- */
   /* these can map to SIMD or block read/write hardware where available */
 
   template <typename T, access::address_space Space>
-  detail::enable_if_t<
-      detail::sub_group::AcceptableForLoadStore<T, Space>::value, T>
+  sycl::detail::enable_if_t<
+      sycl::detail::sub_group::AcceptableForLoadStore<T, Space>::value, T>
   load(const multi_ptr<T, Space> src) const {
-    return detail::sub_group::load(src);
+    return sycl::detail::sub_group::load(src);
   }
 
   template <int N, typename T, access::address_space Space>
-  detail::enable_if_t<
-      detail::sub_group::AcceptableForLoadStore<T, Space>::value && N != 1,
+  sycl::detail::enable_if_t<
+      sycl::detail::sub_group::AcceptableForLoadStore<T, Space>::value &&
+          N != 1,
       vec<T, N>>
   load(const multi_ptr<T, Space> src) const {
-    return detail::sub_group::load<N, T>(src);
+    return sycl::detail::sub_group::load<N, T>(src);
   }
 
   template <int N, typename T, access::address_space Space>
-  detail::enable_if_t<
-      detail::sub_group::AcceptableForLoadStore<T, Space>::value && N == 1,
+  sycl::detail::enable_if_t<
+      sycl::detail::sub_group::AcceptableForLoadStore<T, Space>::value &&
+          N == 1,
       vec<T, 1>>
   load(const multi_ptr<T, Space> src) const {
-    return detail::sub_group::load(src);
+    return sycl::detail::sub_group::load(src);
   }
 
   template <typename T, access::address_space Space>
-  detail::enable_if_t<
-      detail::sub_group::AcceptableForLoadStore<T, Space>::value>
+  sycl::detail::enable_if_t<
+      sycl::detail::sub_group::AcceptableForLoadStore<T, Space>::value>
   store(multi_ptr<T, Space> dst, const T &x) const {
-    detail::sub_group::store(dst, x);
+    sycl::detail::sub_group::store(dst, x);
   }
 
   template <int N, typename T, access::address_space Space>
-  detail::enable_if_t<
-      detail::sub_group::AcceptableForLoadStore<T, Space>::value && N == 1>
+  sycl::detail::enable_if_t<
+      sycl::detail::sub_group::AcceptableForLoadStore<T, Space>::value &&
+      N == 1>
   store(multi_ptr<T, Space> dst, const vec<T, 1> &x) const {
     store<T, Space>(dst, x);
   }
 
   template <int N, typename T, access::address_space Space>
-  detail::enable_if_t<
-      detail::sub_group::AcceptableForLoadStore<T, Space>::value && N != 1>
+  sycl::detail::enable_if_t<
+      sycl::detail::sub_group::AcceptableForLoadStore<T, Space>::value &&
+      N != 1>
   store(multi_ptr<T, Space> dst, const vec<T, N> &x) const {
-    detail::sub_group::store(dst, x);
+    sycl::detail::sub_group::store(dst, x);
   }
 
   /* --- synchronization functions --- */
   void barrier(access::fence_space accessSpace =
                    access::fence_space::global_and_local) const {
-    uint32_t flags = detail::getSPIRVMemorySemanticsMask(accessSpace);
+    uint32_t flags = sycl::detail::getSPIRVMemorySemanticsMask(accessSpace);
     __spirv_ControlBarrier(__spv::Scope::Subgroup, __spv::Scope::Subgroup,
                            flags);
   }
@@ -374,7 +341,7 @@ protected:
 };
 } // namespace intel
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)
 #else
 #include <CL/sycl/intel/sub_group_host.hpp>
 #endif

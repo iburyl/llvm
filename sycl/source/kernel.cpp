@@ -6,17 +6,18 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/kernel_impl.hpp>
+#include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/kernel.hpp>
 #include <CL/sycl/program.hpp>
+#include <detail/kernel_impl.hpp>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 kernel::kernel(cl_kernel ClKernel, const context &SyclContext)
     : impl(std::make_shared<detail::kernel_impl>(
           detail::pi::cast<detail::RT::PiKernel>(ClKernel),
-              detail::getSyclObjImpl(SyclContext))) {}
+          detail::getSyclObjImpl(SyclContext))) {}
 
 cl_kernel kernel::get() const { return impl->get(); }
 
@@ -37,7 +38,8 @@ kernel::get_info() const {
 }
 
 #define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
-  template ret_type kernel::get_info<info::param_type::param>() const;
+  template __SYCL_EXPORT ret_type kernel::get_info<info::param_type::param>()  \
+      const;
 
 #include <CL/sycl/info/kernel_traits.def>
 
@@ -50,8 +52,8 @@ kernel::get_work_group_info(const device &dev) const {
 }
 
 #define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
-  template ret_type kernel::get_work_group_info<info::param_type::param>(      \
-      const device &) const;
+  template __SYCL_EXPORT ret_type                                              \
+  kernel::get_work_group_info<info::param_type::param>(const device &) const;
 
 #include <CL/sycl/info/kernel_work_group_traits.def>
 
@@ -73,11 +75,12 @@ kernel::get_sub_group_info(
 }
 
 #define PARAM_TRAITS_SPEC(param_type, param, ret_type)                         \
-  template ret_type kernel::get_sub_group_info<info::param_type::param>(       \
-      const device &) const;
+  template __SYCL_EXPORT ret_type                                              \
+  kernel::get_sub_group_info<info::param_type::param>(const device &) const;
 #define PARAM_TRAITS_SPEC_WITH_INPUT(param_type, param, ret_type, in_type)     \
-  template ret_type kernel::get_sub_group_info<info::param_type::param>(       \
-      const device &, in_type) const;
+  template __SYCL_EXPORT ret_type                                              \
+  kernel::get_sub_group_info<info::param_type::param>(const device &, in_type) \
+      const;
 
 #include <CL/sycl/info/kernel_sub_group_traits.def>
 
@@ -87,4 +90,4 @@ kernel::get_sub_group_info(
 kernel::kernel(std::shared_ptr<detail::kernel_impl> Impl) : impl(Impl) {}
 
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

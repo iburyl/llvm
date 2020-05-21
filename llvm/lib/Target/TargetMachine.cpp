@@ -34,10 +34,10 @@ using namespace llvm;
 TargetMachine::TargetMachine(const Target &T, StringRef DataLayoutString,
                              const Triple &TT, StringRef CPU, StringRef FS,
                              const TargetOptions &Options)
-    : TheTarget(T), DL(DataLayoutString), TargetTriple(TT), TargetCPU(CPU),
-      TargetFS(FS), AsmInfo(nullptr), MRI(nullptr), MII(nullptr), STI(nullptr),
-      RequireStructuredCFG(false), O0WantsFastISel(false),
-      DefaultOptions(Options), Options(Options) {}
+    : TheTarget(T), DL(DataLayoutString), TargetTriple(TT),
+      TargetCPU(std::string(CPU)), TargetFS(std::string(FS)), AsmInfo(nullptr),
+      MRI(nullptr), MII(nullptr), STI(nullptr), RequireStructuredCFG(false),
+      O0WantsFastISel(false), DefaultOptions(Options), Options(Options) {}
 
 TargetMachine::~TargetMachine() = default;
 
@@ -258,6 +258,10 @@ void TargetMachine::getNameWithPrefix(SmallVectorImpl<char> &Name,
 
 MCSymbol *TargetMachine::getSymbol(const GlobalValue *GV) const {
   const TargetLoweringObjectFile *TLOF = getObjFileLowering();
+  // XCOFF symbols could have special naming convention.
+  if (MCSymbol *TargetSymbol = TLOF->getTargetSymbol(GV, *this))
+    return TargetSymbol;
+
   SmallString<128> NameStr;
   getNameWithPrefix(NameStr, GV, TLOF->getMangler());
   return TLOF->getContext().getOrCreateSymbol(NameStr);

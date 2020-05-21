@@ -1,6 +1,6 @@
 //===- LLVMIntrinsicGen.cpp - TableGen utility for converting intrinsics --===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -11,10 +11,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Support/STLExtras.h"
 #include "mlir/TableGen/GenInfo.h"
 
+#include "llvm/ADT/SmallBitVector.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/MachineValueType.h"
 #include "llvm/Support/PrettyStackTrace.h"
 #include "llvm/Support/Signals.h"
 #include "llvm/TableGen/Error.h"
@@ -29,6 +30,44 @@ static llvm::cl::opt<std::string>
                llvm::cl::desc("Only keep the intrinsics with the specified "
                               "substring in their record name"),
                llvm::cl::cat(IntrinsicGenCat));
+
+static llvm::cl::opt<std::string>
+    opBaseClass("dialect-opclass-base",
+                llvm::cl::desc("The base class for the ops in the dialect we "
+                               "are planning to emit"),
+                llvm::cl::init("LLVM_IntrOp"), llvm::cl::cat(IntrinsicGenCat));
+
+// Used to represent the indices of overloadable operands/results.
+using IndicesTy = llvm::SmallBitVector;
+
+/// Return a CodeGen value type entry from a type record.
+static llvm::MVT::SimpleValueType getValueType(const llvm::Record *rec) {
+  return (llvm::MVT::SimpleValueType)rec->getValueAsDef("VT")->getValueAsInt(
+      "Value");
+}
+
+/// Return the indices of the definitions in a list of definitions that
+/// represent overloadable types
+static IndicesTy getOverloadableTypeIdxs(const llvm::Record &record,
+                                         const char *listName) {
+  auto results = record.getValueAsListOfDefs(listName);
+  IndicesTy overloadedOps(results.size());
+  for (auto r : llvm::enumerate(results)) {
+    llvm::MVT::SimpleValueType vt = getValueType(r.value());
+    switch (vt) {
+    case llvm::MVT::iAny:
+    case llvm::MVT::fAny:
+    case llvm::MVT::Any:
+    case llvm::MVT::iPTRAny:
+    case llvm::MVT::vAny:
+      overloadedOps.set(r.index());
+      break;
+    default:
+      continue;
+    }
+  }
+  return overloadedOps;
+}
 
 namespace {
 /// A wrapper for LLVM's Tablegen class `Intrinsic` that provides accessors to
@@ -47,29 +86,41 @@ public:
 
     name = record.getName();
     assert(name.startswith("int_") &&
-           "LLVM intinsic names are expected to start with 'int_'");
+           "LLVM intrinsic names are expected to start with 'int_'");
     name = name.drop_front(4);
     llvm::SmallVector<llvm::StringRef, 8> chunks;
+    llvm::StringRef targetPrefix = record.getValueAsString("TargetPrefix");
     name.split(chunks, '_');
-    return llvm::join(chunks, ".");
+    auto chunksBegin = chunks.begin();
+    // Remove the target prefix from target specific intrinsics.
+    if (!targetPrefix.empty()) {
+      assert(targetPrefix == *chunksBegin &&
+             "Intrinsic has TargetPrefix, but "
+             "record name doesn't begin with it");
+      assert(chunks.size() >= 2 &&
+             "Intrinsic has TargetPrefix, but "
+             "chunks has only one element meaning the intrinsic name is empty");
+      ++chunksBegin;
+    }
+    return llvm::join(chunksBegin, chunks.end(), ".");
   }
 
   /// Get the name of the record without the "intrinsic" prefix.
   llvm::StringRef getProperRecordName() const {
     llvm::StringRef name = record.getName();
     assert(name.startswith("int_") &&
-           "LLVM intinsic names are expected to start with 'int_'");
+           "LLVM intrinsic names are expected to start with 'int_'");
     return name.drop_front(4);
   }
 
   /// Get the number of operands.
   unsigned getNumOperands() const {
     auto operands = record.getValueAsListOfDefs(fieldOperands);
-    for (const llvm::Record *r : operands) {
-      (void)r;
-      assert(r->isSubClassOf("LLVMType") &&
-             "expected operands to be of LLVM type");
-    }
+    assert(llvm::all_of(operands,
+                        [](const llvm::Record *r) {
+                          return r->isSubClassOf("LLVMType");
+                        }) &&
+           "expected operands to be of LLVM type");
     return operands.size();
   }
 
@@ -108,8 +159,16 @@ public:
     return false;
   }
 
+  IndicesTy getOverloadableOperandsIdxs() const {
+    return getOverloadableTypeIdxs(record, fieldOperands);
+  }
+
+  IndicesTy getOverloadableResultsIdxs() const {
+    return getOverloadableTypeIdxs(record, fieldResults);
+  }
+
 private:
-  /// Names of the fileds in the Intrinsic LLVM Tablegen class.
+  /// Names of the fields in the Intrinsic LLVM Tablegen class.
   const char *fieldName = "LLVMName";
   const char *fieldOperands = "ParamTypes";
   const char *fieldResults = "RetTypes";
@@ -119,18 +178,12 @@ private:
 };
 } // namespace
 
-/// Emits C++ code constructing an LLVM IR intrinsic given the generated MLIR
-/// operation.  In LLVM IR, intrinsics are constructed as function calls.
-static void emitBuilder(const LLVMIntrinsic &intr, llvm::raw_ostream &os) {
-  os << "    llvm::Module *module = builder.GetInsertBlock()->getModule();\n";
-  os << "    llvm::Function *fn = llvm::Intrinsic::getDeclaration(\n";
-  os << "        module, llvm::Intrinsic::" << intr.getProperRecordName()
-     << ");\n";
-  os << "    auto operands = llvm::to_vector<8, Value *>(\n";
-  os << "        opInst.operand_begin(), opInst.operand_end());\n";
-  os << "    " << (intr.getNumResults() > 0 ? "$res = " : "")
-     << "builder.CreateCall(fn, operands);\n";
-  os << "  ";
+/// Prints the elements in "range" separated by commas and surrounded by "[]".
+template <typename Range>
+void printBracketedRange(const Range &range, llvm::raw_ostream &os) {
+  os << '[';
+  llvm::interleaveComma(range, os);
+  os << ']';
 }
 
 /// Emits ODS (TableGen-based) code for `record` representing an LLVM intrinsic.
@@ -150,17 +203,17 @@ static bool emitIntrinsic(const llvm::Record &record, llvm::raw_ostream &os) {
                                                  "LLVM_Type");
 
   // Emit the definition.
-  os << "def LLVM_" << intr.getProperRecordName() << " : LLVM_Op<\"intr."
-     << intr.getOperationName() << "\", [";
-  mlir::interleaveComma(traits, os);
-  os << "]>, Arguments<(ins" << (operands.empty() ? "" : " ");
-  mlir::interleaveComma(operands, os);
-  os << ")>, Results<(outs"
-     << (intr.getNumResults() == 0 ? "" : " LLVM_Type:$res") << ")> {\n"
-     << "  let llvmBuilder = [{\n";
-  emitBuilder(intr, os);
-  os << "}];\n";
-  os << "}\n\n";
+  os << "def LLVM_" << intr.getProperRecordName() << " : " << opBaseClass
+     << "<\"" << intr.getOperationName() << "\", ";
+  printBracketedRange(intr.getOverloadableResultsIdxs().set_bits(), os);
+  os << ", ";
+  printBracketedRange(intr.getOverloadableOperandsIdxs().set_bits(), os);
+  os << ", ";
+  printBracketedRange(traits, os);
+  os << ", " << (intr.getNumResults() == 0 ? 0 : 1) << ">, Arguments<(ins"
+     << (operands.empty() ? "" : " ");
+  llvm::interleaveComma(operands, os);
+  os << ")>;\n\n";
 
   return false;
 }
@@ -171,7 +224,8 @@ static bool emitIntrinsic(const llvm::Record &record, llvm::raw_ostream &os) {
 static bool emitIntrinsics(const llvm::RecordKeeper &records,
                            llvm::raw_ostream &os) {
   llvm::emitSourceFileHeader("Operations for LLVM intrinsics", os);
-  os << "include \"mlir/Dialect/LLVMIR/LLVMOpBase.td\"\n\n";
+  os << "include \"mlir/Dialect/LLVMIR/LLVMOpBase.td\"\n";
+  os << "include \"mlir/Interfaces/SideEffectInterfaces.td\"\n\n";
 
   auto defs = records.getAllDerivedDefinitions("Intrinsic");
   for (const llvm::Record *r : defs) {

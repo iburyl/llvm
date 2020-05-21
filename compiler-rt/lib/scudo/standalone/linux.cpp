@@ -132,8 +132,19 @@ u64 getMonotonicTime() {
 
 u32 getNumberOfCPUs() {
   cpu_set_t CPUs;
-  CHECK_EQ(sched_getaffinity(0, sizeof(cpu_set_t), &CPUs), 0);
+  // sched_getaffinity can fail for a variety of legitimate reasons (lack of
+  // CAP_SYS_NICE, syscall filtering, etc), in which case we shall return 0.
+  if (sched_getaffinity(0, sizeof(cpu_set_t), &CPUs) != 0)
+    return 0;
   return static_cast<u32>(CPU_COUNT(&CPUs));
+}
+
+u32 getThreadID() {
+#if SCUDO_ANDROID
+  return static_cast<u32>(gettid());
+#else
+  return static_cast<u32>(syscall(SYS_gettid));
+#endif
 }
 
 // Blocking is possibly unused if the getrandom block is not compiled in.
@@ -161,10 +172,34 @@ bool getRandom(void *Buffer, uptr Length, UNUSED bool Blocking) {
   return (ReadBytes == static_cast<ssize_t>(Length));
 }
 
+// Allocation free syslog-like API.
+extern "C" WEAK int async_safe_write_log(int pri, const char *tag,
+                                         const char *msg);
+
 void outputRaw(const char *Buffer) {
-  static HybridMutex Mutex;
-  ScopedLock L(Mutex);
-  write(2, Buffer, strlen(Buffer));
+  if (&async_safe_write_log) {
+    constexpr s32 AndroidLogInfo = 4;
+    constexpr uptr MaxLength = 1024U;
+    char LocalBuffer[MaxLength];
+    while (strlen(Buffer) > MaxLength) {
+      uptr P;
+      for (P = MaxLength - 1; P > 0; P--) {
+        if (Buffer[P] == '\n') {
+          memcpy(LocalBuffer, Buffer, P);
+          LocalBuffer[P] = '\0';
+          async_safe_write_log(AndroidLogInfo, "scudo", LocalBuffer);
+          Buffer = &Buffer[P + 1];
+          break;
+        }
+      }
+      // If no newline was found, just log the buffer.
+      if (P == 0)
+        break;
+    }
+    async_safe_write_log(AndroidLogInfo, "scudo", Buffer);
+  } else {
+    write(2, Buffer, strlen(Buffer));
+  }
 }
 
 extern "C" WEAK void android_set_abort_message(const char *);

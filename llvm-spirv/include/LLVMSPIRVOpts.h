@@ -65,6 +65,10 @@ enum class ExtensionID : uint32_t {
   Last,
 };
 
+enum class BIsRepresentation : uint32_t { OpenCL12, OpenCL20, SPIRVFriendlyIR };
+
+enum class FPContractMode : uint32_t { On, Off, Fast };
+
 /// \brief Helper class to manage SPIR-V translation
 class TranslatorOpts {
 public:
@@ -72,9 +76,8 @@ public:
 
   TranslatorOpts() = default;
 
-  TranslatorOpts(VersionNumber Max, const ExtensionsStatusMap &Map = {},
-                 bool ArgNameMD = false)
-      : MaxVersion(Max), ExtStatusMap(Map), GenKernelArgNameMD(ArgNameMD) {}
+  TranslatorOpts(VersionNumber Max, const ExtensionsStatusMap &Map = {})
+      : MaxVersion(Max), ExtStatusMap(Map) {}
 
   bool isAllowedToUseVersion(VersionNumber RequestedVersion) const {
     return RequestedVersion <= MaxVersion;
@@ -91,6 +94,14 @@ public:
   VersionNumber getMaxVersion() const { return MaxVersion; }
 
   bool isGenArgNameMDEnabled() const { return GenKernelArgNameMD; }
+
+  bool isSPIRVMemToRegEnabled() const { return SPIRVMemToReg; }
+
+  void setMemToRegEnabled(bool Mem2Reg) { SPIRVMemToReg = Mem2Reg; }
+
+  void setGenKernelArgNameMDEnabled(bool ArgNameMD) {
+    GenKernelArgNameMD = ArgNameMD;
+  }
 
   void enableAllExtensions() {
 #define EXT(X) ExtStatusMap[ExtensionID::X] = true;
@@ -112,13 +123,40 @@ public:
     return true;
   }
 
+  void setDesiredBIsRepresentation(BIsRepresentation Value) {
+    DesiredRepresentationOfBIs = Value;
+  }
+
+  BIsRepresentation getDesiredBIsRepresentation() const {
+    return DesiredRepresentationOfBIs;
+  }
+
+  void setFPContractMode(FPContractMode Mode) { FPCMode = Mode; }
+
+  FPContractMode getFPContractMode() const { return FPCMode; }
+
 private:
   // Common translation options
   VersionNumber MaxVersion = VersionNumber::MaximumVersion;
   ExtensionsStatusMap ExtStatusMap;
+  // SPIRVMemToReg option affects LLVM IR regularization phase
+  bool SPIRVMemToReg = false;
   // SPIR-V to LLVM translation options
-  bool GenKernelArgNameMD;
+  bool GenKernelArgNameMD = false;
   std::unordered_map<uint32_t, uint64_t> ExternalSpecialization;
+  // Representation of built-ins, which should be used while translating from
+  // SPIR-V to back to LLVM IR
+  BIsRepresentation DesiredRepresentationOfBIs = BIsRepresentation::OpenCL12;
+  // Controls floating point contraction.
+  //
+  // - FPContractMode::On allows to choose a mode according to
+  //   presence of fused LLVM intrinsics
+  //
+  // - FPContractMode::Off disables contratction for all entry points
+  //
+  // - FPContractMode::Fast allows *all* operations to be contracted
+  //   for all entry points
+  FPContractMode FPCMode = FPContractMode::On;
 };
 
 } // namespace SPIRV

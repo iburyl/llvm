@@ -1,4 +1,7 @@
-// RUN: %clangxx -fsycl %s -o %t.out
+// UNSUPPORTED: cuda
+// CUDA cannot support SYCL 1.2.1 images.
+//
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: env SYCL_DEVICE_TYPE=HOST %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
@@ -69,7 +72,7 @@ int main() {
     TestQueue Q{sycl::default_selector()};
     Q.submit([&](sycl::handler &CGH) {
       auto ImgAcc = Img.get_access<sycl::float4, SYCLRead>(CGH);
-      CGH.single_task<class EmptyKernel>([=]() { ImgAcc.get_size(); });
+      CGH.single_task<class EmptyKernel>([=]() { ImgAcc.get_range(); });
     });
   }
 

@@ -25,6 +25,7 @@ subdirectories =
  Demangle
  DWARFLinker
  ExecutionEngine
+ Extensions
  Frontend
  FuzzMutate
  LineEditor
@@ -42,6 +43,7 @@ subdirectories =
  Passes
  ProfileData
  Support
+ SYCLLowerIR
  TableGen
  TextAPI
  Target

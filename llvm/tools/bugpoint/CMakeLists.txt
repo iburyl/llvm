@@ -6,6 +6,7 @@ set(LLVM_LINK_COMPONENTS
   Analysis
   BitWriter
   CodeGen
+  Extensions
   Core
   IPO
   IRReader
@@ -16,6 +17,7 @@ set(LLVM_LINK_COMPONENTS
   ObjCARCOpts
   ScalarOpts
   Support
+  SYCLLowerIR
   Target
   TransformUtils
   Vectorize
@@ -32,10 +34,8 @@ add_llvm_tool(bugpoint
   ToolRunner.cpp
   bugpoint.cpp
 
-  ENABLE_PLUGINS
-
   DEPENDS
   intrinsics_gen
   SUPPORT_PLUGINS
   )
-export_executable_symbols(bugpoint)
+export_executable_symbols_for_plugins(bugpoint)

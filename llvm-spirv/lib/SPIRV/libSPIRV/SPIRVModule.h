@@ -86,6 +86,9 @@ class SPIRVGroupDecorate;
 class SPIRVGroupMemberDecorate;
 class SPIRVGroupDecorateGeneric;
 class SPIRVInstTemplateBase;
+class SPIRVAsmTargetINTEL;
+class SPIRVAsmINTEL;
+class SPIRVAsmCallINTEL;
 
 typedef SPIRVBasicBlock SPIRVLabel;
 struct SPIRVTypeImageDescriptor;
@@ -247,6 +250,7 @@ public:
   addCompositeConstant(SPIRVType *, const std::vector<SPIRVValue *> &) = 0;
   virtual SPIRVValue *addConstant(SPIRVValue *) = 0;
   virtual SPIRVValue *addConstant(SPIRVType *, uint64_t) = 0;
+  virtual SPIRVValue *addSpecConstant(SPIRVType *, uint64_t) = 0;
   virtual SPIRVValue *addDoubleConstant(SPIRVTypeFloat *, double) = 0;
   virtual SPIRVValue *addFloatConstant(SPIRVTypeFloat *, float) = 0;
   virtual SPIRVValue *addIntegerConstant(SPIRVTypeInt *, uint64_t) = 0;
@@ -302,6 +306,12 @@ public:
   virtual SPIRVInstruction *addFunctionPointerINTELInst(SPIRVType *,
                                                         SPIRVFunction *,
                                                         SPIRVBasicBlock *) = 0;
+  virtual SPIRVEntry *getOrAddAsmTargetINTEL(const std::string &) = 0;
+  virtual SPIRVValue *addAsmINTEL(SPIRVTypeFunction *, SPIRVAsmTargetINTEL *,
+                                  const std::string &, const std::string &) = 0;
+  virtual SPIRVInstruction *addAsmCallINTELInst(SPIRVAsmINTEL *,
+                                                const std::vector<SPIRVWord> &,
+                                                SPIRVBasicBlock *) = 0;
   virtual SPIRVInstruction *
   addCompositeConstructInst(SPIRVType *, const std::vector<SPIRVId> &,
                             SPIRVBasicBlock *) = 0;
@@ -416,6 +426,13 @@ public:
   virtual SPIRVInstruction *addSampledImageInst(SPIRVType *, SPIRVValue *,
                                                 SPIRVValue *,
                                                 SPIRVBasicBlock *) = 0;
+  virtual SPIRVInstruction *addAssumeTrueINTELInst(SPIRVValue *Condition,
+                                                   SPIRVBasicBlock *BB) = 0;
+  virtual SPIRVInstruction *addExpectINTELInst(SPIRVType *ResultTy,
+                                               SPIRVValue *Value,
+                                               SPIRVValue *ExpectedValue,
+                                               SPIRVBasicBlock *BB) = 0;
+
   virtual SPIRVId getExtInstSetId(SPIRVExtInstSetKind Kind) const = 0;
 
   virtual bool
@@ -453,6 +470,10 @@ public:
 
   bool getSpecializationConstant(SPIRVWord SpecId, uint64_t &ConstValue) {
     return TranslationOpts.getSpecializationConstant(SpecId, ConstValue);
+  }
+
+  FPContractMode getFPContractMode() const {
+    return TranslationOpts.getFPContractMode();
   }
 
   // I/O functions

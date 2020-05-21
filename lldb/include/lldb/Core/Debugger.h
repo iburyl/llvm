@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_Debugger_h_
-#define liblldb_Debugger_h_
+#ifndef LLDB_CORE_DEBUGGER_H
+#define LLDB_CORE_DEBUGGER_H
 
 #include <stdint.h>
 
@@ -273,6 +273,10 @@ public:
 
   bool SetUseColor(bool use_color);
 
+  bool GetUseSourceCache() const;
+
+  bool SetUseSourceCache(bool use_source_cache);
+
   bool GetHighlightSource() const;
 
   lldb::StopShowColumn GetStopShowColumn() const;
@@ -286,6 +290,10 @@ public:
   StopDisassemblyType GetStopDisassemblyDisplay() const;
 
   uint32_t GetDisassemblyLineCount() const;
+
+  llvm::StringRef GetStopShowLineMarkerAnsiPrefix() const;
+
+  llvm::StringRef GetStopShowLineMarkerAnsiSuffix() const;
 
   bool GetAutoOneLineSummaries() const;
 
@@ -410,6 +418,8 @@ protected:
       m_script_interpreters;
 
   IOHandlerStack m_io_handler_stack;
+  std::recursive_mutex m_io_handler_synchronous_mutex;
+
   llvm::StringMap<std::weak_ptr<llvm::raw_ostream>> m_log_streams;
   std::shared_ptr<llvm::raw_ostream> m_log_callback_stream_sp;
   ConstString m_instance_name;
@@ -438,4 +448,4 @@ private:
 
 } // namespace lldb_private
 
-#endif // liblldb_Debugger_h_
+#endif // LLDB_CORE_DEBUGGER_H

@@ -1,6 +1,6 @@
 //===- Utils.h - Utilities to support the Linalg dialect --------*- C++ -*-===//
 //
-// Part of the MLIR Project, under the Apache License v2.0 with LLVM Exceptions.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
@@ -10,8 +10,8 @@
 #define MLIR_DIALECT_LINALG_UTILS_H_
 
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
-#include "mlir/Dialect/LoopOps/LoopOps.h"
-#include "mlir/Dialect/StandardOps/Ops.h"
+#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 
 #include "llvm/ADT/SetVector.h"
 
@@ -19,6 +19,7 @@ namespace mlir {
 class AffineExpr;
 class AffineMap;
 class OperationFolder;
+class PatternRewriter;
 
 namespace linalg {
 class LinalgDependenceGraph;
@@ -26,6 +27,26 @@ class LinalgDependenceGraph;
 struct FusionInfo {
   LinalgOp originalProducer;
   LinalgOp fusedProducer;
+};
+
+/// A struct containing common matchers over linalg op's region.
+struct RegionMatcher {
+  enum class BinaryOpKind {
+    IAdd,
+  };
+
+  /// Matches the given linalg op if its body is performing binary operation on
+  /// int or float scalar values and returns the binary op kind.
+  ///
+  /// The linalg op's region is expected to be
+  /// ```
+  /// {
+  ///   ^bb(%a: <scalar-type>, %b: <scalar-type>):
+  ///     %0 = <binary-op> %a, %b: <scalar-type>
+  ///     linalg.yield %0: <scalar-type>
+  /// }
+  /// ```
+  static Optional<BinaryOpKind> matchAsScalarBinaryOp(GenericOp op);
 };
 
 /// Checks whether the specific `producer` is the last write to exactly the
@@ -51,6 +72,12 @@ Optional<FusionInfo> fuseProducerOf(OpBuilder &b, LinalgOp consumer,
                                     const LinalgDependenceGraph &graph,
                                     OperationFolder *folder = nullptr);
 
+/// Fuse linalg operation on tensors, with the producer of the operand at
+/// position `consumerIdx` of the consumer.
+Operation *fuseTensorOps(PatternRewriter &rewriter, Operation *consumer,
+                         unsigned consumerIdx,
+                         OperationFolder *folder = nullptr);
+
 /// Returns the linearized list of all view dimensions in a linalgOp. Applying
 /// the inverse, concatenated loopToOperandRangeMaps to this list allows the
 /// derivation of loop ranges for any linalgOp.
@@ -74,57 +101,6 @@ SmallVector<Value, 4> applyMapToValues(OpBuilder &b, Location loc,
                                        AffineMap map, ArrayRef<Value> values,
                                        OperationFolder *folder = nullptr);
 
-struct TiledLinalgOp {
-  LinalgOp op;
-  SmallVector<loop::ForOp, 8> loops;
-};
-
-/// Performs standalone tiling of a single LinalgOp by `tileSizes`.
-/// and permute the loop nest according to `permutation`
-/// The permutation is expressed as a list of integers that specify
-/// the new ordering of the loop nest. The length of `permutation`
-/// must be equal to the length of `tileSizes`.
-/// E.g. the permutation `(i,j,k) -> (j,k,i)` will be expressed with
-/// `permutation = [1,2,0]`. All values in `permutation` must be
-/// integers, in the range 0..`tileSizes.size()` without duplications
-/// (i.e. `[1,1,2]` is an invalid permutation). An empty list
-/// states for the identity permutation.
-/// Returns a struct containing the tiled loops in the specified order
-/// and the cloned op if successful, llvm::None otherwise.
-/// When non-null, the optional pointer `folder` is used to call into the
-/// `createAndFold` builder method. If `folder` is null, the regular `create`
-/// method is called.
-Optional<TiledLinalgOp> tileLinalgOp(OpBuilder &b, LinalgOp op,
-                                     ArrayRef<Value> tileSizes,
-                                     ArrayRef<unsigned> permutation = {},
-                                     OperationFolder *folder = nullptr);
-
-/// Performs standalone tiling of a single LinalgOp by constant `tileSizes`.
-/// and permute the loop nest according to `permutation`
-/// The permutation is expressed as a list of integers that specify
-/// the new ordering of the loop nest. The length of `permutation`
-/// must be equal to the length of `tileSizes`.
-/// E.g. the permutation `(i,j,k) -> (j,k,i)` will be expressed with
-/// `permutation = [1,2,0]`. All values in `permutation` must be
-/// integers, in the range 0..`tileSizes.size()` without duplications
-/// (i.e. `[1,1,2]` is an invalid permutation). An empty list
-/// states for the identity permutation.
-/// Returns a struct containing the tiled loops in the specified order
-/// and the cloned op if successful, llvm::None otherwise.
-/// When non-null, the optional pointer `folder` is used to call into the
-/// `createAndFold` builder method. If `folder` is null, the regular `create`
-/// method is called.
-Optional<TiledLinalgOp> tileLinalgOp(OpBuilder &b, LinalgOp op,
-                                     ArrayRef<int64_t> tileSizes,
-                                     ArrayRef<unsigned> permutation = {},
-                                     OperationFolder *folder = nullptr);
-
-template <typename... Args>
-Optional<TiledLinalgOp> tileLinalgOperation(OpBuilder &b, Operation *op,
-                                            Args... args) {
-  return tileLinalgOp(b, cast<LinalgOp>(op), args...);
-}
-
 struct PromotionInfo {
   Value buffer;
   Value fullLocalView;
@@ -144,7 +120,8 @@ struct PromotionInfo {
 /// full and partial views indexing into the buffer.
 SmallVector<PromotionInfo, 8>
 promoteSubViews(OpBuilder &b, Location loc, ArrayRef<Value> subViews,
-                bool dynamicBuffers = false, OperationFolder *folder = nullptr);
+                bool dynamicBuffers = false, int64_t alignment = 0,
+                OperationFolder *folder = nullptr);
 
 /// Returns all the operands of `linalgOp` that are not views.
 /// Asserts that these operands are value types to allow transformations like
@@ -163,16 +140,6 @@ void applyPermutationToVector(SmallVector<T, N> &inVec,
     auxVec[i] = inVec[permutation[i]];
   inVec = auxVec;
 }
-
-/// Prepares the SubView promotion later performed by `promoteSubViews`
-/// (where most of the transformation happens). It arranges the new
-/// operands for `LinalgOp op` and deallocates the new buffer(s)
-/// It is the entry point for declarative transformation
-/// Returns the cloned `LinalgOp` with the new operands
-LinalgOp promoteSubViewOperands(OpBuilder &b, LinalgOp op,
-                                llvm::SetVector<Value> subViews,
-                                bool dynamicBuffers = false,
-                                OperationFolder *folder = nullptr);
 
 } // namespace linalg
 } // namespace mlir

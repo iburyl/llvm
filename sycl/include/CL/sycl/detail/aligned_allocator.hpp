@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include <CL/cl.h>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/range.hpp>
@@ -19,7 +18,7 @@
 #include <memory>
 #include <vector>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 template <typename T> class aligned_allocator {
@@ -80,4 +79,4 @@ private:
 };
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

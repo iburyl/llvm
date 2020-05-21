@@ -235,6 +235,16 @@ bool types::isFPGA(ID Id) {
   }
 }
 
+bool types::isArchive(ID Id) {
+  switch (Id) {
+  default:
+    return false;
+  case TY_Archive:
+  case TY_WholeArchive:
+    return true;
+  }
+}
+
 bool types::isSrcFile(ID Id) {
   return Id != TY_Object && getPreprocessedType(Id) != TY_INVALID;
 }
@@ -308,7 +318,10 @@ types::ID types::lookupTypeForTypeSpecifier(const char *Name) {
         strcmp(Name, getInfo(Id).Name) == 0)
       return Id;
   }
-
+  // Accept "cu" as an alias for "cuda" for NVCC compatibility
+  if (strcmp(Name, "cu") == 0) {
+    return types::TY_CUDA;
+  }
   return TY_INVALID;
 }
 

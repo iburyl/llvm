@@ -30,6 +30,15 @@ if 'TMP' in os.environ:
 if 'TEMP' in os.environ:
     config.environment['TEMP'] = os.environ['TEMP']
 
+if 'SYCL_CONFIG_FILE_NAME' in os.environ:
+    config.environment['SYCL_CONFIG_FILE_NAME'] = os.environ['SYCL_CONFIG_FILE_NAME']
+else:
+    # Since SYCL RT can be now statically linked into the unit test binary,
+    # dynamic library location resolution mechanisms can be incorrect for such
+    # tests. Provide the runtime with non-existing configuration file name to
+    # force it load the default configuration.
+    config.environment['SYCL_CONFIG_FILE_NAME'] = "null.cfg"
+
 # Propagate path to symbolizer for ASan/MSan.
 for symbolizer in ['ASAN_SYMBOLIZER_PATH', 'MSAN_SYMBOLIZER_PATH']:
     if symbolizer in os.environ:
@@ -57,3 +66,6 @@ for shlibpath_var in find_shlibpath_var():
 else:
     lit_config.warning("unable to inject shared library path on '{}'"
                        .format(platform.system()))
+
+config.environment['SYCL_BE'] = lit_config.params.get('SYCL_BE', "PI_OPENCL")
+lit_config.note("Backend (SYCL_BE): {}".format(config.environment['SYCL_BE']))

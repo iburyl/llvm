@@ -74,6 +74,10 @@ inline bool isLogicalOpCode(Op OpCode) {
   return (unsigned)OpCode >= OpLogicalEqual && (unsigned)OpCode <= OpLogicalNot;
 }
 
+inline bool isUnaryPredicateOpCode(Op OpCode) {
+  return (unsigned)OpCode >= OpAny && (unsigned)OpCode <= OpSignBitSet;
+}
+
 inline bool isBitwiseOpCode(Op OpCode) {
   return (unsigned)OpCode >= OpBitwiseOr && (unsigned)OpCode <= OpBitwiseAnd;
 }
@@ -171,6 +175,11 @@ inline bool isTypeOpCode(Op OpCode) {
   unsigned OC = OpCode;
   return (OpTypeVoid <= OC && OC <= OpTypePipe) || OC == OpTypePipeStorage ||
          isSubgroupAvcINTELTypeOpCode(OpCode) || OC == OpTypeVmeImageINTEL;
+}
+
+inline bool isSpecConstantOpCode(Op OpCode) {
+  unsigned OC = OpCode;
+  return OpSpecConstantTrue <= OC && OC <= OpSpecConstantOp;
 }
 
 inline bool isConstantOpCode(Op OpCode) {

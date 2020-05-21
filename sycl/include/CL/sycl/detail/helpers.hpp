@@ -12,6 +12,7 @@
 #include <CL/__spirv/spirv_vars.hpp>
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
 
@@ -20,7 +21,7 @@
 #include <type_traits>
 #include <vector>
 
-__SYCL_INLINE namespace cl {
+__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 class context;
 class event;
@@ -33,14 +34,22 @@ template <int Dims> class h_item;
 enum class memory_order;
 
 namespace detail {
+inline void memcpy(void *Dst, const void *Src, size_t Size) {
+  char *Destination = reinterpret_cast<char *>(Dst);
+  const char *Source = reinterpret_cast<const char *>(Src);
+  for (size_t I = 0; I < Size; ++I) {
+    Destination[I] = Source[I];
+  }
+}
+
 class context_impl;
 // The function returns list of events that can be passed to OpenCL API as
 // dependency list and waits for others.
-std::vector<RT::PiEvent>
+__SYCL_EXPORT std::vector<RT::PiEvent>
 getOrWaitEvents(std::vector<cl::sycl::event> DepEvents,
                 std::shared_ptr<cl::sycl::detail::context_impl> Context);
 
-void waitEvents(std::vector<cl::sycl::event> DepEvents);
+__SYCL_EXPORT void waitEvents(std::vector<cl::sycl::event> DepEvents);
 
 class Builder {
 public:
@@ -156,7 +165,7 @@ public:
 #endif // __SYCL_DEVICE_ONLY__
 };
 
-inline constexpr __spv::MemorySemanticsMask
+inline constexpr __spv::MemorySemanticsMask::Flag
 getSPIRVMemorySemanticsMask(memory_order) {
   return __spv::MemorySemanticsMask::None;
 }
@@ -208,4 +217,4 @@ getSPIRVMemorySemanticsMask(const access::fence_space AccessSpace,
 
 } // namespace detail
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)

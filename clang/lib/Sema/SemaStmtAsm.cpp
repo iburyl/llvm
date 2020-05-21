@@ -256,16 +256,6 @@ StmtResult Sema::ActOnGCCAsmStmt(SourceLocation AsmLoc, bool IsSimple,
   // The parser verifies that there is a string literal here.
   assert(AsmString->isAscii());
 
-  // Skip all the checks if we are compiling SYCL device code, but the function
-  // is not marked to be used on device, this code won't be codegen'ed anyway.
-  if (getLangOpts().SYCLIsDevice) {
-    SYCLDiagIfDeviceCode(AsmLoc, diag::err_sycl_restrict) << KernelUseAssembly;
-    return new (Context)
-        GCCAsmStmt(Context, AsmLoc, IsSimple, IsVolatile, NumOutputs, NumInputs,
-                   Names, Constraints, Exprs.data(), AsmString, NumClobbers,
-                   Clobbers, NumLabels, RParenLoc);
-  }
-
   FunctionDecl *FD = dyn_cast<FunctionDecl>(getCurLexicalContext());
   llvm::StringMap<bool> FeatureMap;
   Context.getFunctionFeatureMap(FeatureMap, FD);
@@ -305,6 +295,14 @@ StmtResult Sema::ActOnGCCAsmStmt(SourceLocation AsmLoc, bool IsSimple,
     if (Info.allowsMemory() &&
         checkExprMemoryConstraintCompat(*this, OutputExpr, Info, false))
       return StmtError();
+
+    // Disallow _ExtInt, since the backends tend to have difficulties with
+    // non-normal sizes.
+    if (OutputExpr->getType()->isExtIntType())
+      return StmtError(
+          Diag(OutputExpr->getBeginLoc(), diag::err_asm_invalid_type)
+          << OutputExpr->getType() << 0 /*Input*/
+          << OutputExpr->getSourceRange());
 
     OutputConstraintInfos.push_back(Info);
 
@@ -430,6 +428,12 @@ StmtResult Sema::ActOnGCCAsmStmt(SourceLocation AsmLoc, bool IsSimple,
       }
     }
 
+    if (InputExpr->getType()->isExtIntType())
+      return StmtError(
+          Diag(InputExpr->getBeginLoc(), diag::err_asm_invalid_type)
+          << InputExpr->getType() << 1 /*Output*/
+          << InputExpr->getSourceRange());
+
     InputConstraintInfos.push_back(Info);
 
     const Type *Ty = Exprs[i]->getType().getTypePtr();
@@ -488,10 +492,10 @@ StmtResult Sema::ActOnGCCAsmStmt(SourceLocation AsmLoc, bool IsSimple,
 
     // Look for the correct constraint index.
     unsigned ConstraintIdx = Piece.getOperandNo();
-    // Labels are the last in the Exprs list.
-    if (NS->isAsmGoto() && ConstraintIdx >= NS->getNumInputs())
-      continue;
     unsigned NumOperands = NS->getNumOutputs() + NS->getNumInputs();
+    // Labels are the last in the Exprs list.
+    if (NS->isAsmGoto() && ConstraintIdx >= NumOperands)
+      continue;
     // Look for the (ConstraintIdx - NumOperands + 1)th constraint with
     // modifier '+'.
     if (ConstraintIdx >= NumOperands) {
@@ -902,9 +906,15 @@ StmtResult Sema::ActOnMSAsmStmt(SourceLocation AsmLoc, SourceLocation LBraceLoc,
                                 SourceLocation EndLoc) {
   bool IsSimple = (NumOutputs != 0 || NumInputs != 0);
   setFunctionHasBranchProtectedScope();
-  if (getLangOpts().SYCLIsDevice)
-    SYCLDiagIfDeviceCode(AsmLoc, diag::err_sycl_restrict)
-        << KernelUseAssembly;
+
+  for (uint64_t I = 0; I < NumOutputs + NumInputs; ++I) {
+    if (Exprs[I]->getType()->isExtIntType())
+      return StmtError(
+          Diag(Exprs[I]->getBeginLoc(), diag::err_asm_invalid_type)
+          << Exprs[I]->getType() << (I < NumOutputs)
+          << Exprs[I]->getSourceRange());
+  }
+
   MSAsmStmt *NS =
     new (Context) MSAsmStmt(Context, AsmLoc, LBraceLoc, IsSimple,
                             /*IsVolatile*/ true, AsmToks, NumOutputs, NumInputs,

@@ -829,11 +829,12 @@ public:
     if (!IsPlaceH)
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
 #endif
+    (void)propList;
   }
 
   template <int Dims = Dimensions, typename AllocatorT,
 	   typename = typename detail::enable_if_t<
-		   (Dimensions == 0) && 
+		   (Dims == 0) && 
                     (!IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf))>
                                       >
   accessor(buffer<DataT,1,AllocatorT> &BufferRef,
@@ -842,6 +843,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(id<AdjustedDim>(), range<1>{1}, BufferRef.get_range()) {
     (void)CommandGroupHandler;
+    (void)propList;
   }
 #else
       : AccessorBaseHost(
@@ -850,18 +852,20 @@ public:
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
     CommandGroupHandler.associateWithHandler(*this);
+    (void)propList;
   }
 #endif
 
   template <int Dims = Dimensions, typename AllocatorT,
-            typename = detail::enable_if_t<(Dims > 0) && (Dims == Dimensions) &&
+            typename = detail::enable_if_t<(Dims > 0) &&
                                            ((!IsPlaceH && IsHostBuf) ||
                                             (IsPlaceH &&
                                              (IsGlobalBuf || IsConstantBuf)))>>
-  accessor(buffer<DataT, Dimensions, AllocatorT> &BufferRef,
+  accessor(buffer<DataT, Dims, AllocatorT> &BufferRef,
            const property_list &propList = {})
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(id<Dimensions>(), BufferRef.get_range(), BufferRef.get_range()) {
+    (void)propList;
   }
 #else
       : AccessorBaseHost(
@@ -872,6 +876,7 @@ public:
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
     if (!IsPlaceH)
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
+    (void)propList;
   }
 #endif
 
@@ -881,25 +886,26 @@ public:
             typename = detail::enable_if_t<
                 (Dims > 0) && IsPlaceH && IsGlobalBuf>>
   accessor(buffer<DataT, Dims, AllocatorT> &BufferRef, mode_tag_t<AccessMode>,
-           const property_list &propList = {}) : accessor(BufferRef) {}
+           const property_list &propList = {}) : accessor(BufferRef, propList) {}
 
   template <int Dims = Dimensions, typename AllocatorT,
             typename = detail::enable_if_t<
                 (Dims > 0)  && IsPlaceH && (IsGlobalBuf || IsConstantBuf)>>
   accessor(buffer<DataT, Dims, AllocatorT> &BufferRef, mode_target_tag_t<AccessMode, AccessTarget>,
-           const property_list &propList = {}) : accessor(BufferRef) {}
+           const property_list &propList = {}) : accessor(BufferRef, propList) {}
 #endif
 
   template <int Dims = Dimensions, typename AllocatorT,
             typename = detail::enable_if_t<
-                (Dimensions > 0) && (Dims == Dimensions) &&
+                (Dims > 0) &&
                 (!IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf))>>
-  accessor(buffer<DataT, Dimensions, AllocatorT> &BufferRef,
+  accessor(buffer<DataT, Dims, AllocatorT> &BufferRef,
            handler &CommandGroupHandler,
            const property_list &propList = {})
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(id<AdjustedDim>(), BufferRef.get_range(), BufferRef.get_range()) {
     (void)CommandGroupHandler;
+    (void)propList;
   }
 #else
       : AccessorBaseHost(
@@ -909,6 +915,7 @@ public:
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
     CommandGroupHandler.associateWithHandler(*this);
+    (void)propList;
   }
 #endif
 
@@ -919,19 +926,19 @@ public:
                 (Dims > 0) && !IsPlaceH && (IsGlobalBuf || IsConstantBuf)>>
   accessor(buffer<DataT, Dims, AllocatorT> &BufferRef,
            handler &CommandGroupHandler, mode_tag_t<AccessMode>,
-           const property_list &propList = {}) : accessor(BufferRef, CommandGroupHandler) {}
+           const property_list &propList = {}) : accessor(BufferRef, CommandGroupHandler, propList) {}
 
   template <int Dims = Dimensions, typename AllocatorT,
             typename = detail::enable_if_t<
                 (Dims > 0) && !IsPlaceH && (IsGlobalBuf || IsConstantBuf)>>
   accessor(buffer<DataT, Dims, AllocatorT> &BufferRef,
            handler &CommandGroupHandler, mode_target_tag_t<AccessMode, AccessTarget>,
-           const property_list &propList = {}) : accessor(BufferRef, CommandGroupHandler) {}
+           const property_list &propList = {}) : accessor(BufferRef, CommandGroupHandler, propList) {}
 
 #endif
 
   template <int Dims = Dimensions, typename AllocatorT,
-            typename = detail::enable_if_t<(Dims > 0) && (Dims == Dimensions) &&
+            typename = detail::enable_if_t<(Dims > 0) &&
                                            ((!IsPlaceH && IsHostBuf) ||
                                             (IsPlaceH &&
                                              (IsGlobalBuf || IsConstantBuf)))>>
@@ -940,6 +947,7 @@ public:
            const property_list &propList = {})
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(AccessOffset, AccessRange, BufferRef.get_range()) {
+    (void)propList;
   }
 #else
       : AccessorBaseHost(detail::convertToArrayOfN<3, 0>(AccessOffset),
@@ -950,11 +958,30 @@ public:
                          BufferRef.IsSubBuffer) {
     if (!IsPlaceH)
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
+    (void)propList;
   }
 #endif
 
+#if __cplusplus > 201402L
+
   template <int Dims = Dimensions, typename AllocatorT,
-            typename = detail::enable_if_t<(Dims > 0) && (Dims == Dimensions) &&
+            typename = detail::enable_if_t<(Dims > 0) && IsPlaceH && (IsGlobalBuf || IsConstantBuf)>>
+  accessor(buffer<DataT, Dims, AllocatorT> &BufferRef,
+           range<Dimensions> AccessRange, id<Dimensions> AccessOffset,
+           mode_tag_t<AccessMode>,
+           const property_list &propList = {}) : accessor(BufferRef, AccessRange, AccessOffset, propList) {}
+
+  template <int Dims = Dimensions, typename AllocatorT,
+            typename = detail::enable_if_t<(Dims > 0) && IsPlaceH && (IsGlobalBuf || IsConstantBuf)>>
+  accessor(buffer<DataT, Dims, AllocatorT> &BufferRef,
+           range<Dimensions> AccessRange, id<Dimensions> AccessOffset,
+           mode_target_tag_t<AccessMode, AccessTarget>,
+           const property_list &propList = {}) : accessor(BufferRef, AccessRange, AccessOffset, propList) {}
+
+#endif
+
+  template <int Dims = Dimensions, typename AllocatorT,
+            typename = detail::enable_if_t<(Dims > 0) &&
                                            (!IsPlaceH &&
                                             (IsGlobalBuf || IsConstantBuf))>>
   accessor(buffer<DataT, Dims, AllocatorT> &BufferRef,
@@ -964,6 +991,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(AccessOffset, AccessRange, BufferRef.get_range()) {
     (void)CommandGroupHandler;
+    (void)propList;
   }
 #else
       : AccessorBaseHost(detail::convertToArrayOfN<3, 0>(AccessOffset),
@@ -973,7 +1001,26 @@ public:
                          Dimensions, sizeof(DataT), BufferRef.OffsetInBytes,
                          BufferRef.IsSubBuffer) {
     CommandGroupHandler.associateWithHandler(*this);
+    (void)propList;
   }
+#endif
+
+#if __cplusplus > 201402L
+
+  template <int Dims = Dimensions, typename AllocatorT,
+            typename = detail::enable_if_t<(Dims > 0) && !IsPlaceH && (IsGlobalBuf || IsConstantBuf)>>
+  accessor(buffer<DataT, Dims, AllocatorT> &BufferRef,
+           handler &CommandGroupHandler, range<Dimensions> AccessRange, id<Dimensions> AccessOffset,
+           mode_tag_t<AccessMode>,
+           const property_list &propList = {}) : accessor(BufferRef, CommandGroupHandler, AccessRange, AccessOffset, propList) {}
+
+  template <int Dims = Dimensions, typename AllocatorT,
+            typename = detail::enable_if_t<(Dims > 0) && !IsPlaceH && (IsGlobalBuf || IsConstantBuf)>>
+  accessor(buffer<DataT, Dims, AllocatorT> &BufferRef,
+           handler &CommandGroupHandler, range<Dimensions> AccessRange, id<Dimensions> AccessOffset,
+           mode_target_tag_t<AccessMode, AccessTarget>,
+           const property_list &propList = {}) : accessor(BufferRef, CommandGroupHandler, AccessRange, AccessOffset, propList) {}
+
 #endif
 
   constexpr bool is_placeholder() const { return IsPlaceH; }

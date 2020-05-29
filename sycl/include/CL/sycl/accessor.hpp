@@ -779,7 +779,7 @@ public:
 
   template <int Dims = Dimensions, typename AllocatorT,
 	   typename = typename detail::enable_if_t<
-		   (Dims == 0) && 
+		   (Dimensions == 0) && 
                     (!IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf))>
 		    			>
   accessor(buffer<DataT,1,AllocatorT> &BufferRef,
@@ -803,7 +803,7 @@ public:
                                            ((!IsPlaceH && IsHostBuf) ||
                                             (IsPlaceH &&
                                              (IsGlobalBuf || IsConstantBuf)))>>
-  accessor(buffer<DataT, Dims, AllocatorT> &BufferRef,
+  accessor(buffer<DataT, Dimensions, AllocatorT> &BufferRef,
            const property_list &propList = {})
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(id<Dimensions>(), BufferRef.get_range(), BufferRef.get_range()) {
@@ -820,11 +820,26 @@ public:
   }
 #endif
 
+#if __cplusplus > 201402L
+
   template <int Dims = Dimensions, typename AllocatorT,
             typename = detail::enable_if_t<
-                (Dims > 0) && (Dims == Dimensions) &&
+                (Dims > 0) && IsPlaceH && IsGlobalBuf>>
+  accessor(buffer<DataT, Dims, AllocatorT> &BufferRef, mode_tag_t<AccessMode>,
+           const property_list &propList = {}) : accessor(BufferRef) {}
+
+  template <int Dims = Dimensions, typename AllocatorT,
+            typename = detail::enable_if_t<
+                (Dims > 0)  && IsPlaceH && (IsGlobalBuf || IsConstantBuf)>>
+  accessor(buffer<DataT, Dims, AllocatorT> &BufferRef, mode_target_tag_t<AccessMode, AccessTarget>,
+           const property_list &propList = {}) : accessor(BufferRef) {}
+#endif
+
+  template <int Dims = Dimensions, typename AllocatorT,
+            typename = detail::enable_if_t<
+                (Dimensions > 0) && (Dims == Dimensions) &&
                 (!IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf))>>
-  accessor(buffer<DataT, Dims, AllocatorT> &BufferRef,
+  accessor(buffer<DataT, Dimensions, AllocatorT> &BufferRef,
            handler &CommandGroupHandler,
            const property_list &propList = {})
 #ifdef __SYCL_DEVICE_ONLY__
@@ -845,28 +860,14 @@ public:
 
   template <int Dims = Dimensions, typename AllocatorT,
             typename = detail::enable_if_t<
-                (Dims > 0) && (Dims == Dimensions) && ((!IsPlaceH && IsHostBuf) ||
-                               (IsPlaceH && (IsGlobalBuf || IsConstantBuf)))>>
-  accessor(buffer<DataT, Dims, AllocatorT> &BufferRef, mode_tag_t<AccessMode>,
-           const property_list &propList = {}) : accessor(BufferRef) {}
-
-  template <int Dims = Dimensions, typename AllocatorT,
-            typename = detail::enable_if_t<
-                (Dims > 0) && (Dims == Dimensions) && ((!IsPlaceH && IsHostBuf) ||
-                               (IsPlaceH && (IsGlobalBuf || IsConstantBuf)))>>
-  accessor(buffer<DataT, Dims, AllocatorT> &BufferRef, mode_target_tag_t<AccessMode, AccessTarget>,
-           const property_list &propList = {}) : accessor(BufferRef) {}
-
-  template <int Dims = Dimensions, typename AllocatorT,
-            typename = detail::enable_if_t<
-                (Dims > 0) && (Dims == Dimensions) && (!IsPlaceH && (IsGlobalBuf || IsConstantBuf))>>
+                (Dims > 0) && !IsPlaceH && (IsGlobalBuf || IsConstantBuf)>>
   accessor(buffer<DataT, Dims, AllocatorT> &BufferRef,
            handler &CommandGroupHandler, mode_tag_t<AccessMode>,
            const property_list &propList = {}) : accessor(BufferRef, CommandGroupHandler) {}
 
   template <int Dims = Dimensions, typename AllocatorT,
             typename = detail::enable_if_t<
-                (Dims > 0) && (Dims == Dimensions) && (!IsPlaceH && (IsGlobalBuf || IsConstantBuf))>>
+                (Dims > 0) && !IsPlaceH && (IsGlobalBuf || IsConstantBuf)>>
   accessor(buffer<DataT, Dims, AllocatorT> &BufferRef,
            handler &CommandGroupHandler, mode_target_tag_t<AccessMode, AccessTarget>,
            const property_list &propList = {}) : accessor(BufferRef, CommandGroupHandler) {}

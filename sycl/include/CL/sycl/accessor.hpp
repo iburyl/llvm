@@ -817,7 +817,7 @@ public:
                 Dims == 0 && ((!IsPlaceH && IsHostBuf) ||
                 (IsPlaceH && (IsGlobalBuf || IsConstantBuf)))>* = nullptr>
   accessor(buffer<DataT, 1, AllocatorT> &BufferRef,
-           const property_list &propList = {})
+           const property_list &PropertyList = {})
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(id<AdjustedDim>(), range<1>{1}, BufferRef.get_range()) {
 #else
@@ -829,7 +829,7 @@ public:
     if (!IsPlaceH)
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
 #endif
-    (void)propList;
+    (void)PropertyList;
   }
 
   template <int Dims = Dimensions, typename AllocatorT,
@@ -839,11 +839,11 @@ public:
                                       >
   accessor(buffer<DataT,1,AllocatorT> &BufferRef,
 		  handler &CommandGroupHandler,
-          const property_list &propList = {})
+          const property_list &PropertyList = {})
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(id<AdjustedDim>(), range<1>{1}, BufferRef.get_range()) {
     (void)CommandGroupHandler;
-    (void)propList;
+    (void)PropertyList;
   }
 #else
       : AccessorBaseHost(
@@ -852,7 +852,7 @@ public:
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
     CommandGroupHandler.associateWithHandler(*this);
-    (void)propList;
+    (void)PropertyList;
   }
 #endif
 
@@ -862,10 +862,10 @@ public:
                                             (IsPlaceH &&
                                              (IsGlobalBuf || IsConstantBuf)))>>
   accessor(buffer<DataT, Dims, AllocatorT> &BufferRef,
-           const property_list &propList = {})
+           const property_list &PropertyList = {})
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(id<Dimensions>(), BufferRef.get_range(), BufferRef.get_range()) {
-    (void)propList;
+    (void)PropertyList;
   }
 #else
       : AccessorBaseHost(
@@ -876,7 +876,7 @@ public:
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
     if (!IsPlaceH)
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
-    (void)propList;
+    (void)PropertyList;
   }
 #endif
 
@@ -886,13 +886,13 @@ public:
             typename = detail::enable_if_t<
                 (Dims > 0) && IsPlaceH && IsGlobalBuf>>
   accessor(buffer<DataT, Dims, AllocatorT> &BufferRef, mode_tag_t<AccessMode>,
-           const property_list &propList = {}) : accessor(BufferRef, propList) {}
+           const property_list &PropertyList = {}) : accessor(BufferRef, PropertyList) {}
 
   template <int Dims = Dimensions, typename AllocatorT,
             typename = detail::enable_if_t<
                 (Dims > 0)  && IsPlaceH && (IsGlobalBuf || IsConstantBuf)>>
   accessor(buffer<DataT, Dims, AllocatorT> &BufferRef, mode_target_tag_t<AccessMode, AccessTarget>,
-           const property_list &propList = {}) : accessor(BufferRef, propList) {}
+           const property_list &PropertyList = {}) : accessor(BufferRef, PropertyList) {}
 #endif
 
   template <int Dims = Dimensions, typename AllocatorT,
@@ -901,11 +901,11 @@ public:
                 (!IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf))>>
   accessor(buffer<DataT, Dims, AllocatorT> &BufferRef,
            handler &CommandGroupHandler,
-           const property_list &propList = {})
+           const property_list &PropertyList = {})
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(id<AdjustedDim>(), BufferRef.get_range(), BufferRef.get_range()) {
     (void)CommandGroupHandler;
-    (void)propList;
+    (void)PropertyList;
   }
 #else
       : AccessorBaseHost(
@@ -915,7 +915,7 @@ public:
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
     CommandGroupHandler.associateWithHandler(*this);
-    (void)propList;
+    (void)PropertyList;
   }
 #endif
 
@@ -926,14 +926,14 @@ public:
                 (Dims > 0) && !IsPlaceH && (IsGlobalBuf || IsConstantBuf)>>
   accessor(buffer<DataT, Dims, AllocatorT> &BufferRef,
            handler &CommandGroupHandler, mode_tag_t<AccessMode>,
-           const property_list &propList = {}) : accessor(BufferRef, CommandGroupHandler, propList) {}
+           const property_list &PropertyList = {}) : accessor(BufferRef, CommandGroupHandler, PropertyList) {}
 
   template <int Dims = Dimensions, typename AllocatorT,
             typename = detail::enable_if_t<
                 (Dims > 0) && !IsPlaceH && (IsGlobalBuf || IsConstantBuf)>>
   accessor(buffer<DataT, Dims, AllocatorT> &BufferRef,
            handler &CommandGroupHandler, mode_target_tag_t<AccessMode, AccessTarget>,
-           const property_list &propList = {}) : accessor(BufferRef, CommandGroupHandler, propList) {}
+           const property_list &PropertyList = {}) : accessor(BufferRef, CommandGroupHandler, PropertyList) {}
 
 #endif
 
@@ -944,10 +944,10 @@ public:
                                              (IsGlobalBuf || IsConstantBuf)))>>
   accessor(buffer<DataT, Dims, AllocatorT> &BufferRef,
            range<Dimensions> AccessRange, id<Dimensions> AccessOffset = {},
-           const property_list &propList = {})
+           const property_list &PropertyList = {})
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(AccessOffset, AccessRange, BufferRef.get_range()) {
-    (void)propList;
+    (void)PropertyList;
   }
 #else
       : AccessorBaseHost(detail::convertToArrayOfN<3, 0>(AccessOffset),
@@ -958,7 +958,7 @@ public:
                          BufferRef.IsSubBuffer) {
     if (!IsPlaceH)
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
-    (void)propList;
+    (void)PropertyList;
   }
 #endif
 
@@ -969,14 +969,14 @@ public:
   accessor(buffer<DataT, Dims, AllocatorT> &BufferRef,
            range<Dimensions> AccessRange, id<Dimensions> AccessOffset,
            mode_tag_t<AccessMode>,
-           const property_list &propList = {}) : accessor(BufferRef, AccessRange, AccessOffset, propList) {}
+           const property_list &PropertyList = {}) : accessor(BufferRef, AccessRange, AccessOffset, PropertyList) {}
 
   template <int Dims = Dimensions, typename AllocatorT,
             typename = detail::enable_if_t<(Dims > 0) && IsPlaceH && (IsGlobalBuf || IsConstantBuf)>>
   accessor(buffer<DataT, Dims, AllocatorT> &BufferRef,
            range<Dimensions> AccessRange, id<Dimensions> AccessOffset,
            mode_target_tag_t<AccessMode, AccessTarget>,
-           const property_list &propList = {}) : accessor(BufferRef, AccessRange, AccessOffset, propList) {}
+           const property_list &PropertyList = {}) : accessor(BufferRef, AccessRange, AccessOffset, PropertyList) {}
 
 #endif
 
@@ -987,11 +987,11 @@ public:
   accessor(buffer<DataT, Dims, AllocatorT> &BufferRef,
            handler &CommandGroupHandler, range<Dimensions> AccessRange,
            id<Dimensions> AccessOffset = {},
-           const property_list &propList = {})
+           const property_list &PropertyList = {})
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(AccessOffset, AccessRange, BufferRef.get_range()) {
     (void)CommandGroupHandler;
-    (void)propList;
+    (void)PropertyList;
   }
 #else
       : AccessorBaseHost(detail::convertToArrayOfN<3, 0>(AccessOffset),
@@ -1001,7 +1001,7 @@ public:
                          Dimensions, sizeof(DataT), BufferRef.OffsetInBytes,
                          BufferRef.IsSubBuffer) {
     CommandGroupHandler.associateWithHandler(*this);
-    (void)propList;
+    (void)PropertyList;
   }
 #endif
 
@@ -1012,14 +1012,14 @@ public:
   accessor(buffer<DataT, Dims, AllocatorT> &BufferRef,
            handler &CommandGroupHandler, range<Dimensions> AccessRange, id<Dimensions> AccessOffset,
            mode_tag_t<AccessMode>,
-           const property_list &propList = {}) : accessor(BufferRef, CommandGroupHandler, AccessRange, AccessOffset, propList) {}
+           const property_list &PropertyList = {}) : accessor(BufferRef, CommandGroupHandler, AccessRange, AccessOffset, PropertyList) {}
 
   template <int Dims = Dimensions, typename AllocatorT,
             typename = detail::enable_if_t<(Dims > 0) && !IsPlaceH && (IsGlobalBuf || IsConstantBuf)>>
   accessor(buffer<DataT, Dims, AllocatorT> &BufferRef,
            handler &CommandGroupHandler, range<Dimensions> AccessRange, id<Dimensions> AccessOffset,
            mode_target_tag_t<AccessMode, AccessTarget>,
-           const property_list &propList = {}) : accessor(BufferRef, CommandGroupHandler, AccessRange, AccessOffset, propList) {}
+           const property_list &PropertyList = {}) : accessor(BufferRef, CommandGroupHandler, AccessRange, AccessOffset, PropertyList) {}
 
 #endif
 
@@ -1412,8 +1412,6 @@ public:
 
 #if __cplusplus > 201402L
 
-/* When placeholder becomes a truly runtime parameter, deduction guidelines might go away to large extend. */
-
 template< typename DataT, int Dimensions, typename AllocatorT, typename... Ts >
 accessor(buffer<DataT,Dimensions,AllocatorT>, Ts...) ->
     accessor<DataT,Dimensions,access::mode::read_write,target::global_buffer, access::placeholder::true_t>;
@@ -1447,6 +1445,8 @@ template< typename DataT, int Dimensions, typename AllocatorT, typename... Ts >
 accessor(buffer<DataT,Dimensions,AllocatorT>, handler, range<Dimensions>, Ts...) ->
     accessor<DataT,Dimensions,access::mode::read_write,target::global_buffer>;
 
+#endif
+
 template <typename DataT, int Dimensions, access_mode AccessMode = access_mode::read_write>
 class host_accessor : public accessor<DataT, Dimensions, AccessMode, target::host_buffer, access::placeholder::false_t>
 {
@@ -1462,27 +1462,39 @@ class host_accessor : public accessor<DataT, Dimensions, AccessMode, target::hos
         accessor<DataT, Dimensions, AccessMode, target::host_buffer, access::placeholder::false_t>() {}
 
     template< typename AllocatorT > 
-    host_accessor( buffer<DataT,Dimensions,AllocatorT>& buf,
-                   const property_list &propList = {} ) :
-        accessor<DataT, Dimensions, AccessMode, target::host_buffer, access::placeholder::false_t>( buf ) {}
+    host_accessor( buffer<DataT,Dimensions,AllocatorT> &BufferRef,
+                   const property_list &PropertyList = {} ) :
+        accessor<DataT, Dimensions, AccessMode, target::host_buffer, access::placeholder::false_t>( BufferRef, PropertyList ) {}
+
+#if __cplusplus > 201402L
 
     template< typename AllocatorT > 
-    host_accessor( buffer<DataT,Dimensions,AllocatorT>& buf, mode_tag_t<AccessMode>,
-                   const property_list &propList = {} ) :
-        accessor<DataT, Dimensions, AccessMode, target::host_buffer, access::placeholder::false_t>( buf ) {}
-
-    template< typename AllocatorT > 
-    host_accessor( buffer<DataT,Dimensions,AllocatorT>& buf, range<Dimensions> r,
-                   const property_list &propList = {} ) :
-        accessor<DataT, Dimensions, AccessMode, target::host_buffer, access::placeholder::false_t>( buf, r ) {}
-
-    template< typename AllocatorT > 
-    host_accessor( buffer<DataT,Dimensions,AllocatorT>& buf, range<Dimensions> r, mode_tag_t<AccessMode>,
-                   const property_list &propList = {} ) :
-        accessor<DataT, Dimensions, AccessMode, target::host_buffer, access::placeholder::false_t>( buf, r ) {}
-};
+    host_accessor( buffer<DataT,Dimensions,AllocatorT> &BufferRef, mode_tag_t<AccessMode>,
+                   const property_list &PropertyList = {} ) :
+        accessor<DataT, Dimensions, AccessMode, target::host_buffer, access::placeholder::false_t>( BufferRef, PropertyList ) {}
 
 #endif
+
+    template< typename AllocatorT > 
+    host_accessor( buffer<DataT,Dimensions,AllocatorT> &BufferRef, range<Dimensions> AccessRange, id<Dimensions> AccessOffset = {},
+                   const property_list &PropertyList = {} ) :
+        accessor<DataT, Dimensions, AccessMode, target::host_buffer, access::placeholder::false_t>( BufferRef, AccessRange, AccessOffset, PropertyList ) {}
+
+#if __cplusplus > 201402L
+
+    template< typename AllocatorT > 
+    host_accessor( buffer<DataT,Dimensions,AllocatorT> &BufferRef, range<Dimensions> AccessRange, mode_tag_t<AccessMode>,
+                   const property_list &PropertyList = {} ) :
+        accessor<DataT, Dimensions, AccessMode, target::host_buffer, access::placeholder::false_t>( BufferRef, AccessRange, {}, PropertyList ) {}
+
+    template< typename AllocatorT > 
+    host_accessor( buffer<DataT,Dimensions,AllocatorT> &BufferRef, range<Dimensions> AccessRange, id<Dimensions> AccessOffset, mode_tag_t<AccessMode>,
+                   const property_list &PropertyList = {} ) :
+        accessor<DataT, Dimensions, AccessMode, target::host_buffer, access::placeholder::false_t>( BufferRef, AccessRange, AccessOffset, PropertyList ) {}
+
+#endif
+
+};
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

@@ -63,10 +63,10 @@ struct mode_target_tag_t {
   explicit mode_target_tag_t() = default;
 };
 
-inline constexpr mode_tag_t<access_mode::read>                                 read_tag{};
-inline constexpr mode_tag_t<access_mode::read_write>                           read_write_tag{};
-inline constexpr mode_tag_t<access_mode::write>                                write_tag{};
-inline constexpr mode_target_tag_t<access_mode::read, target::constant_buffer> read_constant_tag{};
+inline constexpr mode_tag_t<access_mode::read>                                 read_only{};
+inline constexpr mode_tag_t<access_mode::read_write>                           read_write{};
+inline constexpr mode_tag_t<access_mode::write>                                write_only{};
+inline constexpr mode_target_tag_t<access_mode::read, target::constant_buffer> read_constant{};
 
 #endif
 

@@ -225,7 +225,11 @@ class noinit : public detail::Prop<detail::PropKind::NoInit> {};
 
 } // namespace property
 
-using property::noinit;
+#if __cplusplus > 201402L
+
+inline constexpr property::noinit noinit;
+
+#endif
 
 class property_list {
 

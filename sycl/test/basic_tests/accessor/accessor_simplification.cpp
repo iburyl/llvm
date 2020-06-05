@@ -208,7 +208,7 @@ int main() {
 
       Queue.submit([&](sycl::handler& cgh) {
         //auto dev_acc = buf.get_access<sycl::access::mode::discard_write>(cgh);
-        sycl::accessor dev_acc(buf, cgh, sycl::noinit{});
+        sycl::accessor dev_acc(buf, cgh, sycl::noinit);
 
         cgh.parallel_for<class test_discard_write>(
             sycl::range<1>{3},
@@ -243,7 +243,7 @@ int main() {
       });
 
       //auto host_acc = buf.get_access<sycl::access::mode::discard_read_write>();
-      sycl::host_accessor host_acc(buf, sycl::noinit{});
+      sycl::host_accessor host_acc(buf, sycl::noinit);
     } catch (cl::sycl::exception e) {
       std::cout << "SYCL exception caught: " << e.what();
       return 1;

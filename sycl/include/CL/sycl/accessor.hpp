@@ -769,6 +769,22 @@ protected:
     return std::is_same<T, DataT>::value && (Dims > 0) && (Dims == Dimensions);
   }
 
+  
+  static access::mode getAdjustedMode( const property_list &PropertyList ) {
+    access::mode AdjustedMode = AccessMode;
+    
+    if( PropertyList.has_property<property::noinit>() ) {
+      if( AdjustedMode == access::mode::write ) {
+        AdjustedMode = access::mode::discard_write;
+      }
+      else if( AdjustedMode == access::mode::read_write ) {
+        AdjustedMode = access::mode::discard_read_write;
+      }
+    }
+
+    return AdjustedMode;
+  }
+
 #if __cplusplus > 201402L
 
   template <typename TagT> static constexpr bool IsValidTag() {
@@ -870,7 +886,7 @@ public:
 #else
       : AccessorBaseHost(
             /*Offset=*/{0, 0, 0}, detail::convertToArrayOfN<3, 1>(range<1>{1}),
-            detail::convertToArrayOfN<3, 1>(BufferRef.get_range()), AccessMode,
+            detail::convertToArrayOfN<3, 1>(BufferRef.get_range()), getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), AdjustedDim, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
     if (!IsPlaceH)
@@ -896,7 +912,7 @@ public:
 #else
       : AccessorBaseHost(
             /*Offset=*/{0, 0, 0}, detail::convertToArrayOfN<3, 1>(range<1>{1}),
-            detail::convertToArrayOfN<3, 1>(BufferRef.get_range()), AccessMode,
+            detail::convertToArrayOfN<3, 1>(BufferRef.get_range()), getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
     CommandGroupHandler.associateWithHandler(*this);
@@ -920,7 +936,7 @@ public:
       : AccessorBaseHost(
             /*Offset=*/{0, 0, 0},
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
-            detail::convertToArrayOfN<3, 1>(BufferRef.get_range()), AccessMode,
+            detail::convertToArrayOfN<3, 1>(BufferRef.get_range()), getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
     if (!IsPlaceH)
@@ -957,7 +973,7 @@ public:
       : AccessorBaseHost(
             /*Offset=*/{0, 0, 0},
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
-            detail::convertToArrayOfN<3, 1>(BufferRef.get_range()), AccessMode,
+            detail::convertToArrayOfN<3, 1>(BufferRef.get_range()), getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer) {
     CommandGroupHandler.associateWithHandler(*this);
@@ -1042,7 +1058,7 @@ public:
       : AccessorBaseHost(detail::convertToArrayOfN<3, 0>(AccessOffset),
                          detail::convertToArrayOfN<3, 1>(AccessRange),
                          detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
-                         AccessMode, detail::getSyclObjImpl(BufferRef).get(),
+                         getAdjustedMode(PropertyList), detail::getSyclObjImpl(BufferRef).get(),
                          Dimensions, sizeof(DataT), BufferRef.OffsetInBytes,
                          BufferRef.IsSubBuffer) {
     if (!IsPlaceH)
@@ -1083,7 +1099,7 @@ public:
       : AccessorBaseHost(detail::convertToArrayOfN<3, 0>(AccessOffset),
                          detail::convertToArrayOfN<3, 1>(AccessRange),
                          detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
-                         AccessMode, detail::getSyclObjImpl(BufferRef).get(),
+                         getAdjustedMode(PropertyList), detail::getSyclObjImpl(BufferRef).get(),
                          Dimensions, sizeof(DataT), BufferRef.OffsetInBytes,
                          BufferRef.IsSubBuffer) {
     CommandGroupHandler.associateWithHandler(*this);

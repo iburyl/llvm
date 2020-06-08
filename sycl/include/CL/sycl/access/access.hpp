@@ -12,85 +12,6 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
-#ifndef __SYCL_DISABLE_ACCESSOR_SIMPLIFICATION_EXTENSION__
-
-enum class target {
-  global = 2014,
-  constant,
-  local,
-  image,
-  host_buffer,
-  host_image,
-  image_array,
-
-  // Deprecated enum names, for backward compatibility with versions before this extension
-  global_buffer = 2014,
-  constant_buffer
-};
-
-// Backward compatibility namespace nesting
-namespace access {
-  using sycl::target;
-}
-
-namespace access {
-  enum class mode {
-    read = 1024,
-    write,
-    read_write,
-    discard_write,
-    discard_read_write,
-    atomic
-  };
-}
-
-using access_mode = access::mode;
-
-
-namespace access {
-  enum class placeholder { false_t, true_t };
-}
-
-#if __cplusplus > 201402L
-
-template <access_mode mode>
-struct mode_tag_t {
-  explicit mode_tag_t() = default;
-};
-
-template <access_mode mode, target trgt>
-struct mode_target_tag_t {
-  explicit mode_target_tag_t() = default;
-};
-
-inline constexpr mode_tag_t<access_mode::read>                                 read_only{};
-inline constexpr mode_tag_t<access_mode::read_write>                           read_write{};
-inline constexpr mode_tag_t<access_mode::write>                                write_only{};
-inline constexpr mode_target_tag_t<access_mode::read, target::constant_buffer> read_constant{};
-
-#endif
-
-// TODO: update based on resolution of https://gitlab.devtools.intel.com/SYCL/extensions/merge_requests/42#note_2803186
-namespace access {
-enum class fence_space {
-  local_space,
-  global_space,
-  global_and_local
-};
-
-// TODO: update based on resolution of https://gitlab.devtools.intel.com/SYCL/extensions/merge_requests/42#note_2803186
-enum class address_space : int {
-  private_space = 0,
-  global_space,
-  constant_space,
-  local_space
-};
-}  // namespace access
-
-#else  // #ifndef __SYCL_DISABLE_ACCESSOR_SIMPLIFICATION_EXTENSION__
-
-namespace access {
-
 enum class target {
   global_buffer = 2014,
   constant_buffer,
@@ -101,6 +22,12 @@ enum class target {
   image_array
 };
 
+// Backward compatibility namespace nesting
+namespace access {
+using sycl::target;
+}
+
+namespace access {
 enum class mode {
   read = 1024,
   write,
@@ -109,14 +36,39 @@ enum class mode {
   discard_read_write,
   atomic
 };
+}
+
+using access_mode = access::mode;
+
+namespace access {
+enum class placeholder { false_t, true_t };
+}
+
+#if __cplusplus > 201402L
+
+template <access_mode mode> struct mode_tag_t {
+  explicit mode_tag_t() = default;
+};
+
+template <access_mode mode, target trgt> struct mode_target_tag_t {
+  explicit mode_target_tag_t() = default;
+};
+
+inline constexpr mode_tag_t<access_mode::read> read_only{};
+inline constexpr mode_tag_t<access_mode::read_write> read_write{};
+inline constexpr mode_tag_t<access_mode::write> write_only{};
+inline constexpr mode_target_tag_t<access_mode::read, target::constant_buffer>
+    read_constant{};
+
+#endif
+
+namespace access {
 
 enum class fence_space {
   local_space,
   global_space,
   global_and_local
 };
-
-enum class placeholder { false_t, true_t };
 
 enum class address_space : int {
   private_space = 0,
@@ -126,8 +78,6 @@ enum class address_space : int {
 };
 
 }  // namespace access
-
-#endif  // #ifndef __SYCL_DISABLE_ACCESSOR_SIMPLIFICATION_EXTENSION__
 
 namespace detail {
 

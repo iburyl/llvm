@@ -2370,11 +2370,7 @@ SYCLIntegrationHeader::SYCLIntegrationHeader(DiagnosticsEngine &_Diag,
 // -----------------------------------------------------------------------------
 
 bool Util::isSyclAccessorType(const QualType &Ty) {
-  return isSyclType(Ty, "accessor", true /*Tmpl*/) ||
-    isSyclType(Ty, "read_accessor", true /*Tmpl*/) ||
-    isSyclType(Ty, "write_accessor", true /*Tmpl*/) ||
-    isSyclType(Ty, "discard_write_accessor", true /*Tmpl*/) ||
-    isSyclType(Ty, "discard_read_write_accessor", true /*Tmpl*/);
+  return isSyclType(Ty, "accessor", true /*Tmpl*/);
 }
 
 bool Util::isSyclSamplerType(const QualType &Ty) {

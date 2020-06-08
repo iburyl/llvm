@@ -158,7 +158,6 @@ RegisterProp(PropKind::NoInit, noinit);
 // Sentinel, needed for automatic build of tuple in property_list.
 RegisterProp(PropKind::PropKindSize, PropBase);
 
-
 // Common class for use_mutex in buffer and image namespaces.
 template <PropKind PropKindT> class UseMutexBase : public Prop<PropKindT> {
 public:

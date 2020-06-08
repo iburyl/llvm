@@ -40,9 +40,11 @@ struct IdxSzT {
   operator size_t() { return x; }
 };
 
-template <typename Acc> struct AccWrapper { Acc accessor; };
+template <typename Acc>
+struct AccWrapper { Acc accessor; };
 
-template <typename Acc1, typename Acc2> struct AccsWrapper {
+template <typename Acc1, typename Acc2>
+struct AccsWrapper {
   int a;
   Acc1 accessor1;
   int b;
@@ -54,12 +56,14 @@ struct Wrapper1 {
   int b;
 };
 
-template <typename Acc> struct Wrapper2 {
+template <typename Acc>
+struct Wrapper2 {
   Wrapper1 w1;
   AccWrapper<Acc> wrapped;
 };
 
-template <typename Acc> struct Wrapper3 { Wrapper2<Acc> w2; };
+template <typename Acc>
+struct Wrapper3 { Wrapper2<Acc> w2; };
 
 int main() {
   // Host accessor.
@@ -206,7 +210,7 @@ int main() {
       sycl::queue Queue;
       sycl::buffer<int, 1> buf(sycl::range<1>(3));
 
-      Queue.submit([&](sycl::handler& cgh) {
+      Queue.submit([&](sycl::handler &cgh) {
         //auto dev_acc = buf.get_access<sycl::access::mode::discard_write>(cgh);
         sycl::accessor dev_acc(buf, cgh, sycl::noinit);
 
@@ -233,7 +237,7 @@ int main() {
       sycl::queue Queue;
       sycl::buffer<int, 1> buf(sycl::range<1>(3));
 
-      Queue.submit([&](sycl::handler& cgh) {
+      Queue.submit([&](sycl::handler &cgh) {
         //auto dev_acc = buf.get_access<sycl::access::mode::write>(cgh);
         sycl::accessor dev_acc(buf, cgh, sycl::write_only);
 
@@ -353,7 +357,7 @@ int main() {
 
       std::cout << "We are here 1" << std::endl;
 
-      queue.submit([&](sycl::handler& cgh) {
+      queue.submit([&](sycl::handler &cgh) {
         //auto acc1 = buf.get_access<sycl::access::mode::read>(cgh);
         sycl::accessor acc1(buf, cgh, sycl::read_only);
         //auto acc2 = buf.get_access<sycl::access::mode::read_write>(cgh);
@@ -362,7 +366,7 @@ int main() {
         cgh.parallel_for<class two_accessors_to_buf>(
             sycl::range<1>{3},
             [=](sycl::id<1> index) {
-                acc2[index] = 41 + acc1[index];
+              acc2[index] = 41 + acc1[index];
             });
       });
 
@@ -458,14 +462,13 @@ int main() {
     try {
       int data = -1;
       int cnst = 399;
-      
+
       {
         sycl::buffer<int, 1> d(&data, sycl::range<1>(1));
         sycl::buffer<int, 1> c(&cnst, sycl::range<1>(1));
-        
+
         sycl::queue queue;
         queue.submit([&](sycl::handler &cgh) {
-
           sycl::accessor D(d, cgh, sycl::write_only);
           sycl::accessor C(c, cgh, sycl::read_constant);
 
@@ -488,17 +491,16 @@ int main() {
     try {
       int data = -1;
       int cnst = 399;
-      
+
       {
         sycl::buffer<int, 1> d(&data, sycl::range<1>(1));
         sycl::buffer<int, 1> c(&cnst, sycl::range<1>(1));
 
         sycl::accessor D(d, sycl::write_only);
         sycl::accessor C(c, sycl::read_constant);
-        
+
         sycl::queue queue;
         queue.submit([&](sycl::handler &cgh) {
-
           cgh.require(D);
           cgh.require(C);
 
@@ -515,5 +517,4 @@ int main() {
       return 1;
     }
   }
-
 }
